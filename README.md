@@ -1,4 +1,3 @@
-ssl-whmcs
-=========
+## Namecheap.com WHMCS SSL Module
 
-Namecheap SSL WHMCS Module
+***
