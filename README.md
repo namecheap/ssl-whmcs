@@ -13,7 +13,7 @@
 - Fixed issue with "Unhandled Exception" error being received while reissue
 - Minor internal fixes.
 
-Release Notes
+[Release Notes](https://github.com/namecheap/ssl-whmcs/wiki/Changelog)
 
 ##### Before you begin
 
