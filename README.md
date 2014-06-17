@@ -310,6 +310,20 @@ Recently Multi-Domain Certificates were added to Namecheap’s product list. The
     <td>100</td>
     <td>97</td>
   </tr>
+    <tr>
+    <td>Comodo</td>
+    <td>Multi Domain SSL</td>
+    <td>3</td>
+    <td>100</td>
+    <td>97</td>
+  </tr>
+    <tr>
+    <td>Comodo</td>
+    <td>EV Multi Domain</td>
+    <td>3</td>
+    <td>100</td>
+    <td>97</td>
+  </tr>
   <tr>
     <td>Comodo</td>
     <td>Unified Communications</td>
