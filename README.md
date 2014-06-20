@@ -4,14 +4,9 @@
 **Note:** This version is fully compatible with 5.2.x versions of WHMCS. 
 ***
 
-##### Updated on May 11, 2014 to Version 1.2.7 for WHMCS 5
+##### Updated on Jun 20, 2014 to Version 1.5.1 for WHMCS 5
 
-- Multi-Domain Certificates support added
-- Fixed bug causing incorrect display of list of certificates in addon for cases when production username is same as sandbox one.
-- Fixed showing all possible Management options in user area instead of showing only available ones.
-- Fixed of issue with no fields appearing in ‘Module Settings’ after selecting ‘namecheapssl’ from dropdown menu.
-- Fixed issue with "Unhandled Exception" error being received while reissue
-- Minor internal fixes.
+- Minor fixes related to cron sending empty requests to Namecheap API issue.
 
 [Release Notes](https://github.com/namecheap/ssl-whmcs/wiki/Changelog)
 
