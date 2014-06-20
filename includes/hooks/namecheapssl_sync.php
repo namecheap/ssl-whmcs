@@ -11,13 +11,13 @@
         
         // production sync
         $r = mysql_query("SELECT DISTINCT configoption1 AS user, configoption2 AS password FROM tblproducts WHERE configoption9='' AND configoption1!='' AND configoption2!='' AND servertype='namecheapssl'");
-        while (false!== ($row=  mysql_fetch_assoc($r))){
+        while ($row=mysql_fetch_assoc($r)){
             Namecheapssl_hook_sync_2($row['user'],$row['password'],false);
         }
         
         // sandbox sync
         $r = mysql_query("SELECT DISTINCT configoption3 AS user, configoption4 AS password FROM tblproducts WHERE configoption9='on' AND configoption3!='' AND configoption4!='' AND servertype='namecheapssl'");
-        while (false!== ($row=  mysql_fetch_assoc($r))){
+        while ($row=mysql_fetch_assoc($r)){
             Namecheapssl_hook_sync_2($row['user'],$row['password'],true);
         }
         
