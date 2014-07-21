@@ -24,10 +24,13 @@ Namecheap.com SSL module for WHMCS is an open-source plugin that is distributed 
 
 You will be allowed to resell all of our SSL products:
 
-**GeoTrust Cerificates:**
+**RapidSSL Cerificates:**
 
 - RapidSSL
 - RapidSSL Wildcard
+
+**GeoTrust Cerificates:** 
+
 - GeoTrust QuickSSL
 - GeoTrust QuickSSL Premium
 - GeoTrust True BusinessID with EV
@@ -77,10 +80,13 @@ Namecheap has a production as well as a test server environment. The test server
 
 All of our certificates are supported in sandbox:
 
-**GeoTrust Cerificates:**
+**RapidSSL Cerificates:**
 
 - RapidSSL
 - RapidSSL Wildcard
+
+**GeoTrust Cerificates:**
+
 - GeoTrust QuickSSL
 - GeoTrust QuickSSL Premium
 - GeoTrust True BusinessID with EV
