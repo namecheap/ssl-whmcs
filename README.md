@@ -51,12 +51,12 @@ You will be allowed to resell all of our SSL products:
 - Comodo Unified Communications
 - Comodo PositiveSSL Multi Domain
 
-**VeriSign Certificates:**
+**Symantec Certificates:**
 
-- VeriSign Secure Site
-- VeriSign Secure Site Pro
-- VeriSign Secure Site EV
-- VeriSign Secure Site Pro EV
+- Symantec Secure Site
+- Symantec Secure Site Pro
+- Symantec Secure Site EV
+- Symantec Secure Site Pro EV
 
 **Thawte Certificates:**
 
@@ -89,12 +89,12 @@ All of our certificates are supported in sandbox:
 - GeoTrust TrueBusinessID Multi Domain
 - GeoTrust TrueBusinessID with EV Multi Domain
 
-**VeriSign Certificates:**
+**Symantec Certificates:**
 
-- VeriSign Secure Site
-- VeriSign Secure Site Pro
-- VeriSign Secure Site EV
-- VeriSign Secure Site Pro EV
+- Symantec Secure Site
+- Symantec Secure Site Pro
+- Symantec Secure Site EV
+- Symantec Secure Site Pro EV
 
 **Thawte Certificates:**
 
@@ -167,11 +167,13 @@ To setup an SSL certificate product, please follow the steps below:
 
 ![Customizing TechnicalContacts](http://files.namecheap.com/images/googlecode/Customizing-TechnicalContacts.png)
 
-Note: Our ability to provide support to customers who use custom Technical Contact Fields is limited. In case custom technical contact details are used, we cannot perform reissues, resending of approver email/ certificate, or cancellation/revocation of GeoTrust and VeriSign SSL Certificates. However, since you possess control over technical contact, you can access GeoTrust/VeriSign Live Account and perform these required actions yourself.
+Note: Our ability to provide support to customers who use custom Technical Contact Fields is limited. In case custom technical contact details are used, we cannot perform reissues, resending of approver email/ certificate, or cancellation/revocation of GeoTrust and Symantec SSL Certificates. However, since you possess control over technical contact, you can access GeoTrust/Symantec Live Account and perform these required actions yourself.
 
 For control of GeoTrust SSLs, please visit: https://products.geotrust.com/orders/orderinformation/authentication.do
 
-For control of VeriSign SSLs, please visit: https://products.verisign.com/orders/orderinformation/authentication.do
+For control of Thawte SSLs, please visit: https://products.thawte.com/orders/orderinformation/authentication.do
+
+For control of Symantec SSLs, please visit: https://products.verisign.com/orders/orderinformation/authentication.do
 
 ##### Order Process
 
@@ -369,28 +371,28 @@ Recently Multi-Domain Certificates were added to Namecheap’s product list. The
     <td>24</td>
   </tr>
      <tr>
-    <td>Verisign</td>
+    <td>Symantec</td>
     <td>Secure Site Pro with EV</td>
     <td>1</td>
     <td>25</td>
     <td>24</td>
   </tr>
      <tr>
-    <td>Verisign</td>
+    <td>Symantec</td>
     <td>Secure Site with EV</td>
     <td>1</td>
     <td>25</td>
     <td>24</td>
   </tr>
      <tr>
-    <td>Verisign</td>
+    <td>Symantec</td>
     <td>Secure Site</td>
     <td>1</td>
     <td>25</td>
     <td>24</td>
   </tr>
      <tr>
-    <td>Verisign</td>
+    <td>Symantec</td>
     <td>Secure Site Pro</td>
     <td>1</td>
     <td>25</td>
