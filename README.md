@@ -4,15 +4,26 @@
 **Note:** This version is fully compatible with 5.2.x versions of WHMCS. 
 ***
 
-##### Updated on Jun 20, 2014 to Version 1.5.1 for WHMCS 5
+##### Updated on Jul 23, 2014 to Version 1.6.0 for WHMCS 5
 
-- Minor fixes related to cron sending empty requests to Namecheap API issue.
+- Added MySQL wrapper, improved security for DBMS work.
+- Changed RapidSSL/GeoTrust/Thawte/Symantec reissue procedure: Now, administrative information and emails cannot be edited, due to restrictions from the Certificate Authority.
+- Added revocation functionality.
+- Performed partial code refactoring.
+- Fixed error involving inability to use multi-domain certificates without setting up configurable options.
+- Added fix for hook sending empty requests in case of mySQL server malfunction.
+- Minor fixes
 
 [Release Notes](https://github.com/namecheap/ssl-whmcs/wiki/Changelog)
 
 ##### Before you begin
 
 Namecheap.com SSL module for WHMCS is an open-source plugin that is distributed free of charge. This module allows you to automate SSL Certificate sales with the Namecheap platform.
+
+**Important:**
+
+If you have not previously performed the WHMCS "Further Security Steps," please follow the instructions from the WHMCS documentation at http://docs.whmcs.com/Further_Security_Steps to change your WHMCS admin folder name or password-protect the admin directory.  These steps mitigate the risk of external cron file abuse from outside your server.
+
 
 ##### Pre-requisites
 
@@ -298,6 +309,7 @@ All changes done in WHMCS are synchronized with your Namecheap account automatic
 
 Recently Multi-Domain Certificates were added to Namecheap’s product list. These certificates are quite popular among customers, but require some additional configurations. during Multidomain certificates can be divided into 2 categories – old single domain products that now support additional domains as a configurable addon, and new multi-domain products that come with a predefined number of domains included in the product by default (more domains can be included additionally as well). Therefore number of domains included by default differs across the products. See the table for details:
 
+<html>
 <table>
   <tr>
     <th>Provider</th>
@@ -404,8 +416,8 @@ Recently Multi-Domain Certificates were added to Namecheap’s product list. The
     <td>25</td>
     <td>24</td>
   </tr>
-  
-</table
+</table>
+</html>
 
 ##### Setting up Multi-Domain Certificates
 
@@ -511,6 +523,50 @@ For example, if he selects “admin@” as approver email having “domain.com�
 If your customer wishes to change email for one of the domains, he should contact you, and you in turn need to contact us via live chat or ticket system to have emails changed.
 
 Such approver email selection flow on second configuration page is caused by certain limitations in WHMCS core.
+
+**Revocation** 
+
+In this version, revocation functionality has been added. WHMCS end users can request revocation of their reissued certificates. A new button appears on the Certificate Details page if there are any reissued certificates on record:
+
+![Revoke Cerificate](http://files.namecheap.com/images/googlecode/Revoke-Certificate.png)
+
+Also, this button will be shown in the admin area for specific services.
+With different Certificate Authorities, clicking this button will lead to different behaviors.
+
+**Comodo Case**
+
+Comodo certificates are revoked immedidately after the button is clicked. Once it has been clicked, the button will disappear from the client and admin areas, and certificate is marked ‘Revoked’ on the Namecheap side.
+
+**RapidSSL/GeoTrust/Symantec/Thawte Case**
+
+Revocation functionality for these Certificate Authorities is different from Comodo’s. Revocation approval via email is required. The revocation approval will be sent to the technical email address specified in the order. In addition, there are three groups of RapidSSL/ GeoTrust /Symantec/ Thawte certificates that show different behavior upon clicking the ‘Revoke old certificates’ button based on the issuance dates.
+
+**1. Certificates issued before 6/16/2014**
+
+These certificates cannot be revoked right away. Upon clicking the ‘Revoke Old Certificates’ button the following message will be shown:
+ “Revocation of reissued certificates associated with this order is unavailable right away due to limitations from Symantec. Please contact support for revocation of your reissued certificates.”
+You, as WHMCS admin, will need to revoke the certificate from End User Portal.
+
+Please read the following article to learn how to revoke certificates using End User Portal: https://www.namecheap.com/support/knowledgebase/article.aspx/9346/38/revocation-of-symantecgeotrustthawterapidssl-certificates
+
+**2. Certificates issued after 6/16/2014 that have technical email unfilled in module settings of the product (therefore sslsupport@namecheap.com is used)**
+
+Upon clicking the ‘Revoke Old Certificates’ button the following message will be shown:
+“The revocation process has been initiated. The revocation will be processed manually between us and Symantec. It will be completed within 1-2 hours.“
+
+The revocation approval will be sent to our email address, and our team will process it for you within 1-2 hours if there are no unpredicted circumstances.
+
+**3. Certificates issued after 6/16/2014 that have your technical email specified in module settings of product**
+
+Upon clicking the ‘Revoke Old Certificates’ button the following message will be shown:
+“Your revocation request is being processed manually by admin. Revocation will be completed as soon as possible.”
+
+You, as WHMCS admin, will need to check your technical email and approve the revocation request manually. We recommend you check technical email inbox on a regular basis.
+
+**Important Note:** Due to limitations on Symantec’s side, the GeoTrust/RapidSSL/Symantec/Thawte certificates described in cases 2 and 3 can be revoked only if there is only one reissued certificate record for a specific certificate. Attempting to revoke certificates that have 2 or more reissued records will cause the following message upon clicking the ‘Revoke Old Certificates’ button: 
+“Revocation of multiple instances of reissued certificates is temporarily unavailable due to technical restrictions on the Certificate Authority’s side. Please contact support for further assistance.”
+
+You will need to revoke the certificate using End User Home or to contact Namecheap SSL Support for revocation.
 
 ##### FAQ
 
