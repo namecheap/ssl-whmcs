@@ -3,6 +3,11 @@
 {else}
 <h1>{$LANG.ncssl_certificate_details}</h1>
 {/if}
+
+{*if $status eq 'not_exists'}
+    {$LANG.ncssl_no_certificate_exists}
+{/if*}
+
 {if $status neq 'not_exists'}
 <table>
     <tr><td><b>{$LANG.ncssl_domain}</b></td><td>{$domain}</td></tr>
@@ -67,4 +72,17 @@
         <input type="submit" value="{$LANG.ncssl_reissue_certificate}" />
         </form>
     </div>
+    
+    {if $showRevokeButton}
+    <div style="padding:10px 0px 5px">
+        <form action="clientarea.php?action=productdetails" method="post" onsubmit="return confirm('{$LANG.ncssl_revoke_confirmation_text}')">
+        <input type="hidden" name="id" value="{$serviceid}" />
+        <input type="hidden" name="modop" value="custom" />
+        <input type="hidden" name="a" value="revoke" />
+        <input type="submit" value="{$LANG.ncssl_revoke_button}" />
+        {$LANG.ncssl_revoke_button_description}
+        </form>
+    </div>
+    {/if}
+        
 {/if}
