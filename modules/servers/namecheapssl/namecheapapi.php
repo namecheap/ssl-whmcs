@@ -3,7 +3,6 @@
 // ****************************************************************************
 // *                                                                          *
 // * NameCheap.com WHMCS domain register/SSL Module                           *
-// * Version 1.5
 // * Email: sslsupport@namecheap.com                                          *
 // *                                                                          *
 // * Copyright 2010-2013 NameCheap.com                                        *
@@ -132,12 +131,11 @@ class NamecheapApi
             $curl_error = curl_error($ch);
             curl_close($ch);
             
-            if($curl_error){
-                $message = $curl_error . " Unable to request data from " . $this->_requestUrl;
+            if($curl_error){                
                 if($this->_debugMode){
-                   namecheapssl_save_debug_info($message,$command,true,$this->_lastLogRecordId);
+                   namecheapssl_save_debug_info('Curl error: ' . $curl_error . ". Unable to request data from " . $this->_requestUrl,$command,true,$this->_lastLogRecordId);
                 }
-                throw new NamecheapApiException($message);
+                throw new NamecheapApiException('Connection error');
             }
             
         }else{
@@ -243,6 +241,7 @@ class NamecheapApi
         $params['Command'] = $command;
         $params['ApiUser'] = $this->_apiUser;
         $params['ApiKey']  = $this->_apiKey;
+        $params['SourceOfCall'] = 'WHMCS';
 
         if (!array_key_exists('UserName', $params) || !strlen($params['UserName'])) {
             $params['UserName'] = $params['ApiUser'];
@@ -339,11 +338,358 @@ class NamecheapApi
 }
 }
 
+
+if (!class_exists('NcSql')){
+    class NcSql{
+        
+        public static function q($sql){
+            $r = mysql_query($sql);
+            return $r;
+        }
+        
+        public static function e($sql){
+            return mysql_real_escape_string($sql);
+        }
+        
+        public static function insertId(){
+            return mysql_insert_id();
+        }
+        
+        public static function sql2set($sql){
+            $r = self::q($sql);
+            if(!$r){
+                return false;
+            } 
+            $row = array();
+            while ($row=mysql_fetch_assoc($r)){
+                $result[]=$row;
+            }
+            return $result;
+        }
+        
+        public static function sql2row($sql){
+            $r = self::q($sql);
+            if(!$r){
+                return false;
+            }
+            return mysql_fetch_assoc($r);
+        }
+        
+        public static function sqlNumRows($sql){
+            $r = self::q($sql);
+            if(!$r){
+                return false;
+            }
+            return mysql_num_rows($r);
+        }
+        
+        public static function sql2set_keyval($sql){
+            $data = self::sql2array($sql);
+            $set = array();
+            if(!empty($data)){
+                
+                list($firstKey,$secondKey) = array_slice(array_keys($data[0]), 0, 2);
+                foreach($data as $v){
+                    $set[$v[$firstKey]] = $v[$secondKey];
+                }
+            }
+            return $set;
+        }
+        
+        public static function sql2cell($sql){
+            $r = self::q($sql);
+            if(!$r){
+                return false;
+            }
+            return array_shift(mysql_fetch_assoc($r));
+        }
+        
+        public static function insert($table,$array){
+            self::q("INSERT INTO $table SET " . self::array2queryPart($array));
+            return mysql_insert_id();
+        }
+        
+        public static function wrapInQuotes($string){
+            $arr = explode(',',$string);
+            foreach($arr as $k=>$v){
+                $v = self::e($v);
+                $arr[$k] = "'$v'";
+            } 
+            return implode(',',$arr);
+        }
+        
+        public static function array2queryPart($array,$delimiter=','){
+            $s = '';
+            foreach($array as $k=>$v){
+                $s .= $k . "='".self::e($v)."'".$delimiter;
+            }
+            $s = substr_replace($s,'',strrpos($s,$delimiter));
+            return $s;
+        }
+        
+    }
+}
+
+
+if (!class_exists('NcRevokeManager')){
+    
+    class NcRevokeManager{
+        
+        protected $_localCertInfo;
+        protected $_params;
+        
+        public function __construct(NcLocalCertInfo $localCertInfo, array $params) {
+            $this->_localCertInfo = $localCertInfo;
+            $this->_params = $params;
+        }
+        
+        public function showButton(){
+            
+            if(!$this->_localCertInfo->getRemoteId()){
+                return false;
+            }
+            
+
+            if(!$this->_localCertInfo->loadServerTypes()){
+                return false;
+            }
+            
+            
+            /*if('COMODO'!=$this->_localCertInfo->getProvider()){
+                return false;
+            }*/
+            
+            
+            if(!$this->getRevokeInfoWasLoaded()){
+                
+                
+                // load revoke info
+                $certsFromList = $this->loadRevokeInfo();
+                if(false===$certsFromList){
+                    return false;
+                }
+                
+                
+                foreach($certsFromList as $item){
+                    $this->addRemoteIdForRevocation($item['CertificateID']);
+                }
+                
+                $this->setRevokeInfoWasLoaded();
+                
+            }
+            
+            return $this->hasRemoteIdForRevocation();
+            
+        }
+        
+        
+        protected function loadRevokeInfo(){
+            
+            // 1.1. Get info
+            $remoteCertInfo = _namecheapssl_getCertificateInfo($this->_params, $this->_localCertInfo->getRemoteId());
+            if(!$remoteCertInfo){
+                return false;
+            }
+            
+            
+            $providerOrderId = $remoteCertInfo['SSLGetInfoResult']['Provider']['OrderID'];
+            
+            
+            // 1.2. Check list, search the same provider order id
+            $certsFromList = _namecheapssl_searchCertificateInfoInList($this->_params, 
+                    array(
+                        'Status' => 'replaced', 
+                        'ProviderOrderID' => $providerOrderId
+                    ));
+            
+            if(false===$certsFromList){
+                return false;
+            }
+            
+            return $certsFromList;
+            
+        }
+        
+        
+        public function hasRemoteIdForRevocation(){
+            $revokeData = $this->_localCertInfo->getRevokeData();
+            
+            if(empty($revokeData['certs'])){
+                return false;
+            }
+            
+            foreach($revokeData['certs'] as $item){
+                if(false===$item){
+                    return true;
+                }
+            }
+            
+        }
+        
+        
+        protected function getRevokeInfoWasLoaded(){
+            $revokeData = $this->_localCertInfo->getRevokeData();
+            return isset($revokeData['loaded']);
+        }
+        
+        
+        protected function setRevokeInfoWasLoaded(){
+            $revokeData = $this->_localCertInfo->getRevokeData();
+            $revokeData['loaded'] = true;
+            $this->_localCertInfo->setRevokeData($revokeData);
+        }
+        
+        
+        public function addRemoteIdForRevocation($remoteId){
+            $revokeData = $this->_localCertInfo->getRevokeData();
+            $revokeData['certs'][$remoteId] = false;
+            $this->_localCertInfo->setRevokeData($revokeData);
+        }
+        
+        
+        public function setRemoteIdRevoked($remoteId){
+            $revokeData = $this->_localCertInfo->getRevokeData();
+            $revokeData['certs'][$remoteId] = true;
+            $this->_localCertInfo->setRevokeData($revokeData);
+        }
+        
+        public function getRemoteIdForRevocation(){
+            
+            $revokeData = $this->_localCertInfo->getRevokeData();            
+            $ids = array();
+            
+            if(empty($revokeData['certs'])){
+                return $ids;
+            }
+            
+            foreach($revokeData['certs'] as $remoteId=>$bRevoked){
+                if(false===$bRevoked){
+                    $ids[] = $remoteId;
+                }
+            }
+            
+            return $ids;
+            
+        }
+        
+        
+    }
+
+    
+    
+}
+
+
+if (!class_exists('NcLocalCertInfo')){
+    
+    class NcLocalCertInfo{
+        
+        const EXCEPTION_SSL_LIST_IS_EMPTY = 'SSL types list is empty';
+        
+        protected $_nativeRow;
+        protected $_customRow;
+        
+        protected static $_namecheapSSLTypesAdvanced;
+        
+        public function __construct($serviceId) {
+            $this->_nativeRow = NcSql::sql2row(" SELECT * FROM tblsslorders WHERE serviceid='".(int)$serviceId."' ");
+            if($this->_nativeRow){
+                $this->_customRow = NcSql::sql2row(" SELECT * FROM mod_namecheapssl WHERE id='" . (int)$this->_nativeRow['id'] . "' ");
+            }
+        }
+        
+        public function getType(){
+            return $this->_nativeRow['certtype'];
+        }
+        
+        public function getRemoteId(){
+            return $this->_nativeRow['remoteid'];
+        }
+        
+        public function inReissueState(){
+            return (bool)$this->_customRow['reissue'];
+        }
+        
+        public function getConfigData($backuped=false){
+            
+            $configdata = $backuped ? $this->_customRow['configdata_copy'] : $this->_nativeRow['configdata'];
+            
+            $result = unserialize($configdata);
+            if(false==$result){
+                $result = unserialize(str_replace("\n", "\r\n", $configdata));
+            }
+            return $result;
+            
+        }
+        
+        
+        public function getRevokeData(){
+            $revokeData = array();
+            if(!empty($this->_customRow['revoke_data'])){
+                $revokeData = unserialize($this->_customRow['revoke_data']);
+            }
+            return $revokeData;
+        }
+        
+        public function setRevokeData($revokeData){
+            
+            $serializedRevokeData = serialize($revokeData);
+            $this->_customRow['revoke_data'] = $serializedRevokeData;
+            
+            $sql = "UPDATE mod_namecheapssl SET revoke_data='".NcSql::e($serializedRevokeData)."' WHERE id='" . $this->_customRow['id'] . "'";
+            NcSql::q($sql);
+            
+        }
+        
+        
+        public function loadServerTypes(){
+            self::$_namecheapSSLTypesAdvanced = namecheapssl_getSslTypes(true);
+            if(!self::$_namecheapSSLTypesAdvanced){
+                return false;
+            }else{
+                return true;
+            }
+        }
+        
+        public function getProvider(){
+            
+            if(empty(self::$_namecheapSSLTypesAdvanced)){
+                throw new NamecheapApiException(self::EXCEPTION_SSL_LIST_IS_EMPTY);
+            }
+            
+            foreach(self::$_namecheapSSLTypesAdvanced as $info){
+                if( strtolower($info['Type']) == strtolower($this->_nativeRow['certtype']) ){
+                    return strtoupper($info['Provider']);
+                }
+            }
+            
+        }
+        
+        
+        public function backupConfigData(){
+            if(empty($this->_customRow['configdata_copy'])){
+                $sql = "UPDATE mod_namecheapssl SET configdata_copy='".NcSql::e($this->_nativeRow['configdata'])."' WHERE id='" . $this->_customRow['id'] . "'";
+                NcSql::q($sql);
+                $this->_customRow['configdata_copy'] = $this->_nativeRow['configdata'];
+            }
+        }
+        
+        public function clearBackupedConfigData(){
+            $sql = "UPDATE mod_namecheapssl SET configdata_copy='' WHERE id='" . $this->_customRow['id'] . "'";
+            NcSql::q($sql);
+        }
+        
+        
+        
+    }
+    
+}
+
+
 /**
  * NamecheapApiException
  */
 if (!class_exists("NamecheapApiException")) {
     class NamecheapApiException extends Exception {}
 }
-
 
