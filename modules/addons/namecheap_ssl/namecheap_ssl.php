@@ -3,10 +3,10 @@
 // ****************************************************************************
 // *                                                                          *
 // * NameCheap.com WHMCS SSL Module Addon                                     *
-// * Version 1.3
+// * Version 1.4
 // * Email: sslsupport@namecheap.com                                          *
 // *                                                                          *
-// * Copyright 2010-2013 NameCheap.com                                        *
+// * Copyright 2010-2014 NameCheap.com                                        *
 // *                                                                          *
 // ****************************************************************************
 
@@ -28,7 +28,7 @@ function namecheap_ssl_config() {
     $configarray = array(
     "name" => "Namecheap SSL Module Addon",
     "description" => "This addon performs several important operations related to Namecheap SSL Module. 1) It performs necessary installation/update procedures during Namecheap SSL Module installation/update. 2) It logs details of all SSL certificate reissues. 3) It performs full logging of all API calls for the products with activated \"debug mode\" option.",
-    "version" => "1.3",
+    "version" => "1.4",
     "author" => "Namecheap",
     "language" => "english",
     "fields" => array(
@@ -147,6 +147,15 @@ function namecheap_ssl_check_upgrades(){
     
     // v 1.3
     // check updates only
+    
+    // v 1.4
+    // 
+    $r = mysql_query("SHOW COLUMNS FROM `mod_namecheapssl` LIKE 'configdata_copy'");
+    if (0==mysql_num_rows($r)){
+        mysql_query("ALTER TABLE `mod_namecheapssl` ADD COLUMN `configdata_copy` TEXT NULL DEFAULT NULL AFTER `file_content`");
+        mysql_query("ALTER TABLE `mod_namecheapssl` ADD COLUMN `revoke_data` TEXT NULL DEFAULT NULL AFTER `configdata_copy`;");
+    }
+    
     
 }
 
@@ -446,8 +455,6 @@ function namecheap_ssl_output($vars) {
                 
                 
             }catch(Exception $e){
-                echo '<pre>';
-                var_dump($users);
                 var_dump($e->getMessage());
                 exit();
                 $view['globals']['error'] = $e->getMessage();
@@ -473,18 +480,33 @@ function namecheap_ssl_output($vars) {
 
 function namecheap_ssl_clientarea($vars){
     
+    
     global $_LANG;
     namecheapssl_initlang();
-
+    
+    
+    $vars = array();
+    
+    if(isset($_REQUEST['san_reduction'])){
+        $vars['notice'] = $_LANG['ncssl_addon_sun_reduction_notice'];
+    }
+    
+    if(!empty($_REQUEST['revoke_message'])){
+        $vars['notice'] = $_LANG['ncssl_error_revoke_'.(int)$_REQUEST['revoke_message']];
+    }
+    
+    if(!empty($_REQUEST['serviceid'])){
+        $vars['back_to_service_id'] = (int)$_REQUEST['serviceid'];
+    }
+    
+    
     return array(
         
         'pagetitle' => 'Namecheap SSL Addon Module',
         'breadcrumb' => array('index.php?m=namecheap_ssl'=>'Namecheap SSL Addon Module'),
         'templatefile' => 'client_templates/notice',
         'requirelogin' => true,
-        'vars' => array(
-            'notice' => $_LANG['ncssl_addon_sun_reduction_notice'],
-        )
+        'vars' => $vars
         
     );
     
