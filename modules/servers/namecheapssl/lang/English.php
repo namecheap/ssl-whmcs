@@ -18,6 +18,7 @@ $_MOD_LANG['ncssl_no_incomplete_certificate'] = "No Incomplete SSL Order exists 
 $_MOD_LANG['ncssl_error_occured'] = "An error occured: ";
 $_MOD_LANG['ncssl_months'] = "Months";
 $_MOD_LANG['ncssl_unable_retrieve_certtypes'] = "Unable to retrieve list of supported certificate-types.";
+$_MOD_LANG['ncssl_try_again_in_several_minutes'] = "Please try again in several minutes";
 $_MOD_LANG['ncssl_sslorder_already_exists'] = "An SSL Order already exists for this order";
 $_MOD_LANG['ncssl_please_contact_support'] = "Please contact support";
 $_MOD_LANG['ncssl_reissue_certificate'] = 'Reissue certificate';
@@ -167,3 +168,22 @@ $_MOD_LANG['ncssl_san_items_item'] = 'Addon Domain ';
 $_MOD_LANG['ncssl_san_items_item_quick_ssl_premium'] = 'Addon Subdomain ';
 
 $_MOD_LANG['ncssl_san_csr_note'] = ' Domains included in SAN sections in CSR will be ignored! Please input addon domains in fields below the box for CSR. Please do not input main domain as addon domain. It is taken from CSR. Please make sure you do not use duplicates.';
+
+$_MOD_LANG['ncssl_reissue_notice_step1'] = 'The following contact information will be used for reissue of your certificate:';
+$_MOD_LANG['ncssl_reissue_notice_step2'] = 'The following information will be used for reissue of your certificate:';
+
+$_MOD_LANG['ncssl_revoke_confirmation_text'] = 'Are you sure that you want to revoke the old certificates associated with this order? This will not affect latest active certificate, only the old reissued certificates will be revoked.';
+$_MOD_LANG['ncssl_revoke_button'] = 'Revoke old certificates';
+$_MOD_LANG['ncssl_revoke_button_description'] = 'Recommended before new reissue';
+
+$_MOD_LANG['ncssl_error_2011166'] = 'Invalid domain name. Please use the domain name used during initial activation: ';
+
+
+$_MOD_LANG['ncssl_error_revoke_1'] = 'Revocation of reissued certificates associated with this order is unavailable right away due to limitations from Symantec. Please contact support for revocation of your reissued certificates';
+$_MOD_LANG['ncssl_error_revoke_2'] = 'Your revocation request is being processed manually by admin. Revocation will be completed as soon as possible';
+$_MOD_LANG['ncssl_error_revoke_3'] = 'Your revocation request is being processed manually. Revocation will be completed as soon as possible';
+$_MOD_LANG['ncssl_error_revoke_4'] = 'Revocation of multiple instances of reissued certificates is temporary unavailable due to technical restrictions at Certificate Authority’s side. Please contact support for further assistance.';
+
+
+$_MOD_LANG['ncssl_back_to_service'] = '&laquo; Back to the service';
+
