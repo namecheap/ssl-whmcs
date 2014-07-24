@@ -187,26 +187,6 @@
     
     
     
-    
-    // direct local test    
-    if (isset($_GET['run'])){
-        
-        if(!empty($_GET['module']) && 'namecheap_ssl' == $_GET['module']){
-            
-            if (isset($_GET['runsync'])){
-                Namecheapssl_hook_sync();
-            }
-
-            if(isset($_GET['runreport'])){
-                Namecheapssl_hook_report();
-            }
-            
-        }
-    }
-    
-    
-    
-    
     function Namecheapssl_hook_prevent_san_reduction($params){
         
         if(!empty($params['filename']) && !empty($params['type']) && $params['filename']=='upgrade' && $params['type']=='configoptions'){
