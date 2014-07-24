@@ -3,7 +3,7 @@
 // ****************************************************************************
 // *                                                                          *
 // * NameCheap.com WHMCS SSL Module                                           *
-// * Version 1.5
+// * Version 1.5.1a
 // * Email: sslsupport@namecheap.com                                          *
 // *                                                                          *
 // * Copyright 2010-2013 NameCheap.com                                        *
@@ -129,9 +129,21 @@
 // Fixed of issue with no fields appearing in ‘Module Settings’ after selecting ‘namecheapssl’ from dropdown menu.
 // Fixed ‘Unhandled Exception’ issue while reissue of a certificate.
 // Minor fixes.
+// 
+// 
+// Updated on July 23, 2014 to Version 1.6 for WHMCS 5  
+// Added MySQL wrapper, improved security for DBMS work.
+// Changed RapidSSL/GeoTrust/Thawte/Symantec reissue procedure: Now, administrative information and emails cannot be edited, due to restrictions from the Certificate Authority.
+// Added revocation functionality.
+// Performed partial code refactoring.
+// Fixed error involving inability to use multi-domain certificates without setting up configurable options.
+// Added fix for hook sending empty requests in case of mySQL server malfunction.
+// Minor fixes
+//
 //
 
 
+require_once dirname(__FILE__) . "/namecheapapi.php";
 
 function namecheapssl_getModuleConfigFields() {
 
@@ -202,13 +214,13 @@ function namecheapssl_getWebServerTypes() {
 }
 
 function namecheapssl_getSslTypes($returnAdvanced = false) {
-
-
+    
+    
     /**
      * check cache
      */
     global $templates_compiledir;
-
+    
     $cacheDir = $templates_compiledir;
     $cacheFileName = $cacheDir . "/namecheap_ssl_certlist_adv.txt";
     $cacheLifetime = 3600;
@@ -278,6 +290,8 @@ function namecheapssl_getSslTypes($returnAdvanced = false) {
             else if ($vendor == 'thawte')
                 $vendor = 'Thawte';
             $label = $vendor . " " . $type;
+            
+            // geoutrust certs
             if ($type == 'RapidSSL' || $type == 'RapidSSL Wildcard')
                 $label = $type;
             
@@ -288,6 +302,13 @@ function namecheapssl_getSslTypes($returnAdvanced = false) {
                 'Provider' => $matches[2][$key],
                 'ValidationType' => $matches[3][$key]
             );
+            
+            
+            /**
+             * $label is stored in tblproducts.configoption5 (string)
+             * $type is stored in tblsslorders.certtype, modnamecheapssl.type (string)
+             * both values should not be renamed
+             */
             
             
         }
@@ -339,8 +360,8 @@ function namecheapssl_initlang() {
     $lang = !empty($_SESSION['Language']) ? $_SESSION['Language'] : $CONFIG['Language'];
     
     if (defined("ADMINAREA")){
-        $r = mysql_query("SELECT language FROM tbladmins WHERE id=" . (int) $_SESSION['adminid'] );
-        $row = mysql_fetch_assoc($r);
+        $sql = "SELECT language FROM tbladmins WHERE id='".(int) $_SESSION['adminid']."'";
+        $row = NcSql::sql2row($sql);
         $lang = !empty($row['language']) ? $row['language'] : 'english';
     }
     
@@ -369,15 +390,14 @@ function namecheapssl_initlang() {
 }
 
 function namecheapssl_ConfigOptions() {
+    
     global $db_name, $_LANG;
     $_namecheapSSLTypes = namecheapssl_getSslTypes();
-    if (!$_namecheapSSLTypes)
-        return 'Unable to retrieve list of supported certificate-types. Please try again in several minutes.';
 
     $_fields = namecheapssl_getModuleConfigFields();
     $_webServerTypes = namecheapssl_getWebServerTypes();
-
-
+    
+    
     $techNotes = '<script type="text/javascript">
 $(document).ready(function() {
 
@@ -499,31 +519,18 @@ function namecheapssl_CreateAccount($params) {
         ;
     }
 
-
     global $CONFIG;
 
     $_namecheapSSLTypes = namecheapssl_getSslTypes();
-    if (!$_namecheapSSLTypes)
+    if (!$_namecheapSSLTypes){
         return 'Unable to retrieve list of supported certificate-types. Please try again in several minutes.';
+    }
 
     $_fields = namecheapssl_getModuleConfigFields();
     $_webServerTypes = namecheapssl_getWebServerTypes();
-
-    require_once dirname(__FILE__) . "/namecheapapi.php";
-    $testmode = isset($params['TestMode']) ? (bool) $params['TestMode'] : (bool) $params['configoption9'];
-    $debugmode = isset($params['DebugMode']) ? (bool) $params['DebugMode'] : (bool) $params['configoption21'];
-
-    if ($testmode) {
-        $username = isset($params[$_fields['SandboxUsername']]) ? $params[$_fields['SandboxUsername']] : $params['configoption3'];
-        $password = isset($params[$_fields['SandboxApiKey']]) ? $params[$_fields['SandboxApiKey']] : $params['configoption4'];
-    } else {
-        $username = isset($params[$_fields['Username']]) ? $params[$_fields['Username']] : $params['configoption1'];
-        $password = isset($params[$_fields['ApiKey']]) ? $params[$_fields['ApiKey']] : $params['configoption2'];
-    }
-
-    $result = select_query("tblsslorders", "COUNT(*)", array("serviceid" => $params["serviceid"]));
-    $data = mysql_fetch_array($result);
-    if ($data[0]) {
+    
+    $sql = "SELECT id FROM tblsslorders WHERE serviceid='" . (int)$params['serviceid']."'";
+    if (NcSql::sqlNumRows($sql)) {
         return "An SSL Order already exists for this order";
     }
 
@@ -534,7 +541,7 @@ function namecheapssl_CreateAccount($params) {
         $tblproducts_cert_type = $params["configoption5"];
     }
 
-    // certificate type labels stored in product configuration
+    // certificate type labels are stored in product configuration
     // it equal to label of dropdownlist in product configuration    
     $certtype = $_namecheapSSLTypes[$tblproducts_cert_type];
 
@@ -554,8 +561,10 @@ function namecheapssl_CreateAccount($params) {
 
 
     $cycles = array('Annually' => 1, 'Biennially' => 2, 'Triennially' => 3);
-    $serviceId = (int) $params['serviceid'];
-    $service = mysql_fetch_array(mysql_query("select * from `tblhosting` where `id` = '" . $serviceId . "'"), MYSQL_ASSOC);
+    
+    $sql = "SELECT * FROM tblhosting WHERE id = '" . (int)$params['serviceid']. "'";
+    $service = NcSql::sql2row($sql);
+    
     $certyears = !empty($cycles[$service['billingcycle']]) ? $cycles[$service['billingcycle']] : 1;
 
     // Certificate id equals to 0
@@ -569,14 +578,9 @@ function namecheapssl_CreateAccount($params) {
         "remoteid" => $certificateId,
         "module" => "namecheapssl",
         "certtype" => $certtype,
-        "status" => "Incomplete"
+        "status" => _namecheapssl_getIncompleteStatus()
     );
-
-    if (version_compare("4.5.2", $CONFIG['Version'], "<=")) {
-        $queryData['status'] = "Awaiting Configuration";
-    }
-
-    $sslorderid = insert_query("tblsslorders", $queryData);
+    $sslorderid = NcSql::insert('tblsslorders',$queryData);
 
 
     // 2. Create record at custom module table
@@ -587,9 +591,9 @@ function namecheapssl_CreateAccount($params) {
         'type' => $certtype,
         'period' => $certyears,
     );
-    insert_query("mod_namecheapssl", $queryData);
-
-
+    NcSql::insert('mod_namecheapssl', $queryData);
+    
+    
 
     // 3. Send certificate welcome email
     //
@@ -599,11 +603,10 @@ function namecheapssl_CreateAccount($params) {
         $sendWelcome = true;
     }
     if (empty($_POST['vars']['products'][$params['serviceid']])) {
-        $packageID = (int) $params['packageid'];
-//        $product = mysql_fetch_array(mysql_query("select * from`tblproducts` where `id` = '".$packageID."' limit 1"), MYSQL_ASSOC);
-//        $sendWelcome = $product['welcomeemail'] > 0;
-
-        $product = mysql_fetch_array(mysql_query("select `autosetup` from`tblproducts` where `id` = '" . $packageID . "' limit 1"), MYSQL_ASSOC);
+        
+        $sql = "SELECT autosetup FROM tblproducts WHERE id = '" . (int) $params['packageid'] . "' LIMIT 1";
+        $product = NcSql::sql2row($sql);
+        
         $sendWelcome = $product['autosetup'] == 'payment' || $product['autosetup'] == 'order';
     }
 
@@ -625,13 +628,11 @@ function namecheapssl_CreateAccount($params) {
 }
 
 function namecheapssl_SSLStepOne($params) {
+    
     global $CONFIG, $_LANG;
-
+    
     namecheapssl_initlang();
     
-    
-    $_namecheapSSLTypesAdvanced = namecheapssl_getSslTypes(true);
-
     $values = array();
 
     // get info at first step and store in in session
@@ -639,25 +640,64 @@ function namecheapssl_SSLStepOne($params) {
         //$certInfoFromList = _namecheapssl_getCertificateInfoFromList($params,$certificateId);
         //$certInfo = _namecheapssl_getCertificateInfo($params,$certificateId);
     }
-
-
-    $res = mysql_query("select `mod_namecheapssl`.*
-                          from `mod_namecheapssl`
-                     left join `tblsslorders` on (`tblsslorders`.`id` = `mod_namecheapssl`.`id`)
-                         where `tblsslorders`.`serviceid` = '" . $params['serviceid'] . "'");
-    $row = mysql_fetch_assoc($res);
+    
+    
+    $localCertInfo = _namecheapssl_getLocalCertInfo($params['serviceid']);
+    
+    if(!$localCertInfo->loadServerTypes()){
+        // can't return error from step-one function
+        exit( $_LANG['ncssl_unable_retrieve_certtypes'] . ' ' . $_LANG['ncssl_try_again_in_several_minutes'] );
+    }
+    
+    $provider = $localCertInfo->getProvider();
+    
+    
+    
+    if( ('COMODO'!=$provider && $localCertInfo->inReissueState()) ){
+        
+        // need to backup previous config data
+        $localCertInfo->backupConfigData();
+        
+        $script = '<script>';
+        $script .= "$(document).ready(function(){";
+        
+        $previousConfigData = $localCertInfo->getConfigData(true);
+        
+        
+        $fields = array('firstname','lastname','orgname','jobtitle','email','address1','address2','city','state','postcode','country','phonenumber');
+        foreach($fields as $field){            
+            if($previousConfigData){
+                $script .= "$('[name=$field]').val('" . addslashes($previousConfigData[$field]) . "')\n";
+                $script .= "$('[name=$field]').prop('disabled',true)\n";
+                $script .= "$('[name=$field]').after($('<input type=hidden name=$field value=\"" . addslashes($previousConfigData[$field]) . "\" >'))\n";
+            }
+        }
+        
+        if($previousConfigData['fields']){
+            foreach($previousConfigData['fields'] as $field=>$value){
+                $script .= "$('[name=firstname]').after($('<input type=hidden name=fields[$field] value=\"" . addslashes($value) . "\" >'))\n";
+            }
+        }
+        
+        
+        $script .= "})";
+        $script .= '</script>';
+        
+        _namecheapssl_replaceLangVariable('ssladmininfodetails', $_LANG['ncssl_reissue_notice_step1'].$script);
+        
+    }
     
     
     //
     // additional domains (san)
     //
-    $sanCount = (int)$params['configoptions']['san'] + _namecheapssl_getDefaultSunCount($row['type']);
+    $sanCount = (int)$params['configoptions']['san'] + _namecheapssl_getDefaultSunCount( $localCertInfo->getType() );
     
     
     if($sanCount>0){
 
         $sanQuickSslPremium = false;
-        if('QuickSSL Premium'==$row['type']){
+        if('QuickSSL Premium' == $localCertInfo->getType() ){
             $sanQuickSslPremium = true;
             $sanCount = 4;
         }
@@ -688,7 +728,9 @@ function namecheapssl_SSLStepOne($params) {
     
     
     // 1. CallBack Parameters for activating Comodo OV Certificates (InstantSSL, InstantSSL Pro, PremiumSSL, PremiumSSL Wildcard):
-    if (in_array($row['type'], array('InstantSSL', 'PremiumSSL', 'InstantSSL Pro', 'PremiumSSL Wildcard', 'Unified Communications'))) {
+    if (
+        !('COMODO'!=$provider && $localCertInfo->inReissueState()) &&
+        in_array( $localCertInfo->getType() , array('InstantSSL', 'PremiumSSL', 'InstantSSL Pro', 'PremiumSSL Wildcard', 'Unified Communications'))) {
 
         $values['additionalfields'][$_LANG['ncssl_comodo_add_form_title']] = array(
             "OrganizationRepFirstName" => array(
@@ -750,7 +792,9 @@ function namecheapssl_SSLStepOne($params) {
 
 
 
-        if (!empty($_REQUEST['fields']['OrganizationRepCallbackDestinationSame'])) {
+        if ( 
+                !('COMODO'!=$provider && $localCertInfo->inReissueState()) && 
+                !empty($_REQUEST['fields']['OrganizationRepCallbackDestinationSame'])) {
             if ($_REQUEST['fields']['OrganizationRepCallbackDestinationSame'] == 'No') {
 
                 //
@@ -810,7 +854,9 @@ function namecheapssl_SSLStepOne($params) {
 
 
     // 2. Additional Parameters for activating Comodo EV Certificates (Comodo EV SSL, Comodo EV SGC SSL)
-    if (in_array($row['type'], array('EV SSL', 'EV SSL SGC'))) {
+    if (  
+            !('COMODO'!=$provider && $localCertInfo->inReissueState()) && 
+            in_array( $localCertInfo->getType() , array('EV SSL', 'EV SSL SGC'))) {
         $values['additionalfields'][$_LANG['ncssl_comodo_ev_add_form_title']] = array(
             "CompanyIncorporationCountry" => array(
                 "FriendlyName" => $_LANG['ncssl_comodo_ev_add_CompanyIncorporationCountry'],
@@ -859,7 +905,9 @@ function namecheapssl_SSLStepOne($params) {
 
 
     // 3. Additional Parameters for activating Geotrust, Verisign and Thawte OV and EV Certificates and Thawte SSL 123
-    if (in_array($row['type'], array('True BusinessID With EV', 'True BusinessID', 'True BusinessID Wildcard', // GEOTRUST
+    if (  
+            !('COMODO'!=$provider && $localCertInfo->inReissueState()) &&
+            in_array( $localCertInfo->getType() , array('True BusinessID With EV', 'True BusinessID', 'True BusinessID Wildcard', // GEOTRUST
                 'Secure Site', 'Secure Site Pro', 'Secure Site with EV', 'Secure Site Pro with EV', // VERISIGN
                 'SSL123', 'SSL Web Server', 'SGC Super Certs', 'SSL WebServer EV', // THAWTE 
                 'True BusinessID Multi Domain', 'True BusinessID with EV Multi Domain'
@@ -940,32 +988,41 @@ function namecheapssl_SSLStepOne($params) {
         );
     }
 
-    namecheapssl_log('client.stepOne', 'client_step_one', array($row['type']), $params['serviceid']);
+    namecheapssl_log('client.stepOne', 'client_step_one', array( $localCertInfo->getType() ), $params['serviceid']);
 
     return $values;
 }
 
 function namecheapssl_SSLStepTwo($params) {
+    
     global $CONFIG, $_LANG;
     namecheapssl_initlang();
 
     $api = _namecheapssl_initApi($params);
-
+    
+    
+    $localCertInfo = _namecheapssl_getLocalCertInfo($params['serviceid']);
+    if(!$localCertInfo->loadServerTypes()){
+        return array( 'error' => $_LANG['ncssl_unable_retrieve_certtypes'] . ' ' . $_LANG['ncssl_try_again_in_several_minutes'] );
+    }
+    $provider = $localCertInfo->getProvider();
+    
     
     // 
-    // check san here
+    // check san
     // 
     $sans = array();
     if(!empty($_REQUEST['fields'])){
         foreach($_REQUEST['fields'] as $fieldName=>$fieldValue){
-            if( substr($fieldName,0,4 )=='san_'){
-                // it's san cert
+            $fieldValue = trim($fieldValue);
+            if( substr($fieldName,0,4 )=='san_' && !empty($fieldValue)){                
                 $sans[] = $fieldValue;
             }
         }
     }
     
-
+    
+    
     // added 20/02/2012 - whmcs 4.4.2 compatibility
     if (version_compare("4.4.2", $CONFIG['Version'], ">=")) {
         $configKeys = array("remoteid", "approveremail", "csr", "servertype", "email", "firstname",
@@ -989,15 +1046,13 @@ function namecheapssl_SSLStepTwo($params) {
         $params[$key] = trim($val);
     }
 
-
-    $res = mysql_query("select `mod_namecheapssl`.*
-                          from `mod_namecheapssl`
-                     left join `tblsslorders` on (`tblsslorders`.`id` = `mod_namecheapssl`.`id`)
-                         where `tblsslorders`.`serviceid` = '" . $params['serviceid'] . "'");
-    $row = mysql_fetch_array($res);
+    
+    $sql = "SELECT mod_namecheapssl.* FROM mod_namecheapssl LEFT JOIN tblsslorders ON (tblsslorders.id = mod_namecheapssl.id) WHERE tblsslorders.serviceid = '" . (int)$params['serviceid'] . "'";
+    $row = NcSql::sql2row($sql);
 
     if (!empty($params['email'])) {
-        mysql_query("update `mod_namecheapssl` set `admin_email` = '" . mysql_real_escape_string($params["email"]) . "' where `id` = '" . $row['id'] . "'");
+        $sql = "UPDATE mod_namecheapssl SET admin_email = '" . NcSql::e ($params["email"]) . "' WHERE id = '" . (int)$row['id'] . "'";
+        NcSql::q($sql);
     }
 
 
@@ -1008,7 +1063,10 @@ function namecheapssl_SSLStepTwo($params) {
     $certType = $row['type'];
 
     // parse CSR
-    $requestParams = array("csr" => $params["csr"]);
+    $requestParams = array(
+            "csr" => $params["csr"],
+            "CertificateType" => in_array($certType, array('Multi Domain SSL','EV Multi Domain SSL')) ? 'EV SSL' : $certType
+        );
     
     try {
         // $api 
@@ -1044,6 +1102,9 @@ function namecheapssl_SSLStepTwo($params) {
                 }
                 $approvalEmailList = array_merge($result['GetApproverEmailListResult']['Domainemails']['email'], $approvalEmailList);
             }
+            
+            $approvalEmailList = array_unique($approvalEmailList);
+            
         } catch (Exception $e) {
 
             return array('error' => $_LANG['ncssl_error_occured'] . $e->getMessage());
@@ -1070,7 +1131,8 @@ function namecheapssl_SSLStepTwo($params) {
     if(!in_array( $certType, 
             array(
                 'Secure Site','Secure Site Pro','Secure Site with EV','Secure Site Pro with EV','True BusinessID With EV','True BusinessID',
-                'True BusinessID Wildcard','SSL Web Server','SGC Super Certs','SSL WebServer EV','True BusinessID Multi Domain','True BusinessID with EV Multi Domain'
+                'True BusinessID Wildcard','SSL Web Server','SGC Super Certs','SSL WebServer EV','True BusinessID Multi Domain','True BusinessID with EV Multi Domain',
+                'InstantSSL', 'PremiumSSL', 'EV SSL', 'EV SSL SGC', 'InstantSSL Pro', 'PremiumSSL Wildcard', 'Multi Domain SSL', 'Unified Communications', 'EV Multi Domain SSL'
                 )
         )){
         
@@ -1093,16 +1155,40 @@ function namecheapssl_SSLStepTwo($params) {
     }
 
     // update service domain name
-    $result = mysql_query("select domain from `tblhosting` where `id` = '" . (int) $params['serviceid'] . "'");
-    $row = mysql_fetch_array($result, MYSQL_ASSOC);
+    $sql = "SELECT domain FROM tblhosting WHERE id = '" . (int) $params['serviceid'] . "'";
+    $row = NcSql::sql2row($sql);        
     if (!strlen($row['domain'])) {
-        mysql_query("update `tblhosting` set domain = '" . $domain . "' where `id` = '" . (int) $params['serviceid'] . "'");
+        $sql = "UPDATE tblhosting SET domain = '" . NcSql::e($domain) . "' WHERE id = '" . (int) $params['serviceid'] . "'";
+        NcSql::q($sql);
     }
-
     
     
     $values["approveremails"] = $approvalEmailList;
-
+    
+    
+    if('COMODO'!=$provider && $localCertInfo->inReissueState()){
+        
+        // disable approver email list
+        
+        $backupedConfigData = $localCertInfo->getConfigData(true);
+        
+        
+        $script  = '<script>';
+        $script .= "$(document).ready(function(){";
+        
+        $script .= "$('[value=\"".addslashes($backupedConfigData['approveremail'])."\"]').prop('checked',true)\n";
+        $script .= "$('[name=approveremail]').prop('disabled',true)\n";
+        $script .= "$('[name=approveremail]:last').after($('<input type=hidden name=approveremail value=\"" . addslashes($backupedConfigData['approveremail']) . "\" >'))\n";
+        
+        
+        $script .= "})";
+        $script .= '</script>';
+        
+        _namecheapssl_replaceLangVariable('sslcertapproveremaildetails', $_LANG['ncssl_reissue_notice_step2'] . $script);
+        
+    }
+    
+    
     namecheapssl_log('client.stepTwo', 'client_step_two', array($certType, $domain), $params['serviceid']);
     
     return $values;
@@ -1114,8 +1200,6 @@ function namecheapssl_SSLStepThree($params) {
     
     $useHttpBasedValidation = (false === strpos($params['approveremail'], '@'));
     
-    
-    
     // added 20/02/2012 - whmcs 4.4.2 compatibility
     if (empty($params['configdata']) && !empty($_SESSION['namecheapssl'])) {
         $params['configdata'] = $_SESSION['namecheapssl'];
@@ -1125,8 +1209,8 @@ function namecheapssl_SSLStepThree($params) {
 
     $reissueProcess = false;
     
-    $r = mysql_query("SELECT id FROM `mod_namecheapssl` WHERE reissue=1 AND certificate_id='{$params['remoteid']}'");
-    if (mysql_num_rows($r)) {        
+    $sql = "SELECT id FROM mod_namecheapssl WHERE reissue='1' AND certificate_id='" . (int)$params['remoteid'] . "'";
+    if (NcSql::sqlNumRows($sql)) {
         $reissueProcess = true;
     }
 
@@ -1135,20 +1219,6 @@ function namecheapssl_SSLStepThree($params) {
 
     $_fields = namecheapssl_getModuleConfigFields();
     $_webServerTypes = namecheapssl_getWebServerTypes();
-
-    require_once dirname(__FILE__) . "/namecheapapi.php";
-
-    $testmode = isset($params['TestMode']) ? (bool) $params['TestMode'] : (bool) $params['configoption9'];
-    $debugmode = isset($params['DebugMode']) ? (bool) $params['DebugMode'] : (bool) $params['configoption21'];
-
-    if ($testmode) {
-        $username = isset($params[$_fields['SandboxUsername']]) ? $params[$_fields['SandboxUsername']] : $params['configoption3'];
-        $password = isset($params[$_fields['SandboxApiKey']]) ? $params[$_fields['SandboxApiKey']] : $params['configoption4'];
-    } else {
-        $username = isset($params[$_fields['Username']]) ? $params[$_fields['Username']] : $params['configoption1'];
-        $password = isset($params[$_fields['ApiKey']]) ? $params[$_fields['ApiKey']] : $params['configoption2'];
-    }
-
 
     
     $requestParams = array(
@@ -1245,8 +1315,11 @@ function namecheapssl_SSLStepThree($params) {
     }
 
     // load information from db
-    $sslOrderInfo = mysql_fetch_array(mysql_query("select * from `tblsslorders` where `serviceid` = '" . (int) $params['serviceid'] . "'"), MYSQL_ASSOC);
-    $sslOrderCustomInfo = mysql_fetch_array(mysql_query("select * from `mod_namecheapssl` where `id` = '" . $sslOrderInfo['id'] . "'"), MYSQL_ASSOC);
+    $sql = "SELECT * FROM tblsslorders WHERE serviceid = '" . (int) $params['serviceid'] . "'";
+    $sslOrderInfo = NcSql::sql2row($sql);
+    
+    $sql = "SELECT * FROM mod_namecheapssl WHERE id = '" . (int)$sslOrderInfo['id'] . "'";
+    $sslOrderCustomInfo = NcSql::sql2row($sql);
 
 
     // added 21 dec 2011
@@ -1271,32 +1344,30 @@ function namecheapssl_SSLStepThree($params) {
     // 
     
     
+    
+    $sans = array();        
+    if(!empty($params['fields'])){
+        foreach($params['fields'] as $fieldName=>$fieldValue){
+            $fieldValue = trim($fieldValue);
+            if( substr($fieldName,0,4 )=='san_' && !empty($fieldValue)){
+                // it's san cert
+                $sans[] = $fieldValue;
+            }
+        }
+    }
+    
+    
+    
     // san related params
     $sanProcess = false;
-    if(isset($params['configoptions']['san'])){
-        
+    if(!empty($sans)){
         
         $sanProcess = true;
         
-        // 
-        // check san here
-        // 
-        $sans = array();
-        
-        if(!empty($params['fields'])){
-            foreach($params['fields'] as $fieldName=>$fieldValue){
-                $fieldValue = trim($fieldValue);
-                if( substr($fieldName,0,4 )=='san_' && !empty($fieldValue)){
-                    // it's san cert
-                    $sans[] = $fieldValue;
-                }
-            }
-        }
         
         // DNS Names in Request
-        if(!empty($sans)){
-            $requestParams['DNSNames'] = join(',',$sans);
-        }
+        $requestParams['DNSNames'] = join(',',$sans);
+        
         
         $sanQuickSslPremium = false;
         if('QuickSSL Premium'==$sslOrderCustomInfo['type']){
@@ -1319,7 +1390,13 @@ function namecheapssl_SSLStepThree($params) {
         if($sanQuickSslPremium){
             $currentAdditionalSansCount = 4;
         }else{
-            $currentAdditionalSansCount = intval($params['configoptions']['san']);
+            
+            if(!empty($params['configoptions']['san'])){
+                $currentAdditionalSansCount = intval($params['configoptions']['san']);
+            }else{
+                $currentAdditionalSansCount = count($sans);
+            }
+            
         }
         
     }
@@ -1375,8 +1452,11 @@ function namecheapssl_SSLStepThree($params) {
 
             foreach ($certificateTypesForSearch as $certificateType) {
                 try {
-                    $requestParamsUseTokens = array("Page" => 1, "PageSize" => 100, "ListType" => "NewPurchase");
-                    $api = new NamecheapApi($username, $password, $testmode, $debugmode);
+                    
+                    $requestParamsUseTokens = array("Page" => 1, "PageSize" => 100, "ListType" => "NewPurchase", 'Years' => $sslOrderCustomInfo['period']);
+                    
+                    
+                    $api = _namecheapssl_initApi($params);
 
                     do {
                         $response = $api->request("namecheap.ssl.getList", $requestParamsUseTokens);
@@ -1403,14 +1483,16 @@ function namecheapssl_SSLStepThree($params) {
                             }
 
                             if (strtolower(trim($certInfo['SSLType'])) == strtolower($certificateType)) {
-                                if (0 == mysql_num_rows(mysql_query("SELECT id FROM tblsslorders WHERE remoteid='{$certInfo['CertificateID']}'"))) {
+                                
+                                $sql = "SELECT id FROM tblsslorders WHERE remoteid='".(int)$certInfo['CertificateID']."'";
+                                if (0 == NcSql::sqlNumRows($sql)) {
                                     
                                     $certificateId = $certInfo['CertificateID'];
                                     
                                     // 
-                                    if($sanProcess){            
+                                    if($sanProcess){
                                         try{
-                                            $api = new NamecheapApi($username, $password, $testmode, $debugmode);
+                                            $api = _namecheapssl_initApi($params);
                                             $response = $api->request("namecheap.ssl.getInfo", array('CertificateID' => (int) $certificateId ));
                                             $result = $api->parseResponse($response);               
                                         } catch (Exception $e) {
@@ -1421,7 +1503,7 @@ function namecheapssl_SSLStepThree($params) {
                                         if($currentAdditionalSansCount>$existingAdditionalSansCount){
                                             try{
                                                 // call .purchasemoresans
-                                                $api = new NamecheapApi($username, $password, $testmode, $debugmode);
+                                                $api = _namecheapssl_initApi($params);
                                                 $response = $api->request("namecheap.ssl.purchasemoresans", 
                                                         array(
                                                             'CertificateID' => (int) $certificateId ,
@@ -1476,7 +1558,7 @@ function namecheapssl_SSLStepThree($params) {
             }
 
             try {
-                $api = new NamecheapApi($username, $password, $testmode, $debugmode);
+                $api = _namecheapssl_initApi($params);
                 $response = $api->request("namecheap.ssl.create", $request_params);
                 $result = $api->parseResponse($response);
                 $certificateId = $result['SSLCreateResult']['SSLCertificate']['@attributes']['CertificateID'];
@@ -1492,8 +1574,12 @@ function namecheapssl_SSLStepThree($params) {
         $requestParams['CertificateID'] = $certificateId;
 
         // (2) update remote id in existing tables tblsslorders, mod_namecheapssl; important
-        mysql_query("UPDATE `mod_namecheapssl` SET certificate_id=" . $certificateId . ",admin_email='" . mysql_real_escape_string($requestParams['AdminEmailAddress']) . "' WHERE id=" . $sslOrderCustomInfo['id']);
-        mysql_query("UPDATE `tblsslorders` SET remoteid=" . $certificateId . " WHERE id=" . $sslOrderInfo['id']);
+        $sql = "UPDATE mod_namecheapssl SET certificate_id='" . (int)$certificateId . "',admin_email='" . NcSql::e($requestParams['AdminEmailAddress']) . "' WHERE id='" . (int)$sslOrderCustomInfo['id'] . "'";
+        NcSql::q($sql);
+        $sql = "UPDATE tblsslorders SET remoteid='" . (int)$certificateId . "' WHERE id='" . (int)$sslOrderInfo['id'] . "'";
+        NcSql::q($sql);
+        
+        
     } else {
         
     }
@@ -1509,7 +1595,7 @@ function namecheapssl_SSLStepThree($params) {
         // check sans count
         if($sanProcess){            
             try{
-                $api = new NamecheapApi($username, $password, $testmode, $debugmode);
+                $api = _namecheapssl_initApi($params);
                 $response = $api->request("namecheap.ssl.getInfo", array('CertificateID' => (int) $certificateId ));
                 $result = $api->parseResponse($response);               
             } catch (Exception $e) {
@@ -1520,7 +1606,7 @@ function namecheapssl_SSLStepThree($params) {
             if($currentAdditionalSansCount>$existingAdditionalSansCount){
                 try{
                     // call .purchasemoresans
-                    $api = new NamecheapApi($username, $password, $testmode, $debugmode);
+                    $api = _namecheapssl_initApi($params);
                     $response = $api->request("namecheap.ssl.purchasemoresans", 
                             array(
                                 'CertificateID' => (int) $certificateId ,
@@ -1537,16 +1623,31 @@ function namecheapssl_SSLStepThree($params) {
         
         try{
             
-            $api = new NamecheapApi($username, $password, $testmode, $debugmode);
+            
+            $api = _namecheapssl_initApi($params);
             $response = $api->request("namecheap.ssl.reissue", $requestParams);
             $result = $api->parseResponse($response);
+            
             // whmcs 4.4.2 compatibility
             if (!empty($_SESSION['namecheapssl'])) {
                 unset($_SESSION['namecheapssl']);
             }
             // whmcs 4.4.2 compatibility
-            mysql_query("UPDATE `tblsslorders` SET remoteid='{$result['SSLReissueResult']['@attributes']['ID']}' WHERE remoteid='$certificateId'");
-            mysql_query("UPDATE `mod_namecheapssl` SET certificate_id='{$result['SSLReissueResult']['@attributes']['ID']}', reissue='0' WHERE certificate_id='$certificateId'");
+            
+            
+            $localCertInfo = _namecheapssl_getLocalCertInfo($params['serviceid']);
+            $localCertInfo->clearBackupedConfigData();
+            
+            
+            $revokeManager = _namecheapssl_getRevokeManager($params);
+            $revokeManager->addRemoteIdForRevocation($certificateId);
+            
+            
+            $sql = "UPDATE tblsslorders SET remoteid='".(int)$result['SSLReissueResult']['@attributes']['ID'] . "' WHERE remoteid='" . (int)$certificateId . "'";
+            NcSql::q($sql);
+            
+            $sql = "UPDATE mod_namecheapssl SET certificate_id='".(int)$result['SSLReissueResult']['@attributes']['ID']."', reissue='0' WHERE certificate_id='" . (int)$certificateId . "'";
+            NcSql::q($sql);
 
             namecheapssl_log('client.reissue', 'client_reissue', array($certificateId, $result['SSLReissueResult']['@attributes']['ID']), $params['serviceid']);
             
@@ -1565,13 +1666,15 @@ function namecheapssl_SSLStepThree($params) {
         // end of certificate reissue process
         //
         
-    }else{
+    }
+    else
+    {
         
         //
         // certificate activation process
         //
         try {
-            $api = new NamecheapApi($username, $password, $testmode, $debugmode);
+            $api = _namecheapssl_initApi($params);
             $response = $api->request("namecheap.ssl.activate", $requestParams);
             $result = $api->parseResponse($response);
 
@@ -1581,7 +1684,6 @@ function namecheapssl_SSLStepThree($params) {
                 namecheapssl_log('client.stepThree', 'client_step_three_activated', array($sslOrderInfo['certtype'], $certificateId, $params["approveremail"], $requestParams['AdminEmailAddress']), $params['serviceid']);
             }
             
-
             // added 20/02/2012 - whmcs 4.4.2 compatibility
             if (!empty($_SESSION['namecheapssl'])) {
                 unset($_SESSION['namecheapssl']);
@@ -1592,8 +1694,15 @@ function namecheapssl_SSLStepThree($params) {
                 $fileContent = $result['SSLActivateResult']['HttpDCValidation']['FileContent'];
             }
             
-            // end: added 20/02/2012 - whmcs 4.4.2 compatibility
         } catch (Exception $e) {
+            
+            // change error message
+            if (2011166==$e->getCode()){
+                return array('error' => $_LANG['ncssl_error_2011166'] . $params['domain']);
+            }
+            
+            
+            // default error message
             return array('error' => $_LANG['ncssl_error_occured'] . $e->getMessage());
         }
         //
@@ -1609,7 +1718,8 @@ function namecheapssl_SSLStepThree($params) {
     if ($useHttpBasedValidation) {
 
         // save file name and file content and redirect to custom client area page
-        mysql_query("UPDATE `mod_namecheapssl` SET file_name='" . mysql_real_escape_string($fileName) . "', file_content='" . mysql_real_escape_string($fileContent) . "' WHERE id='{$sslOrderCustomInfo['id']}'");
+        $sql = "UPDATE mod_namecheapssl SET file_name='" . NcSql::e($fileName) . "', file_content='" . NcSql::e($fileContent) . "' WHERE id='".(int)$sslOrderCustomInfo['id'] ."'";
+        NcSql::q($sql);
 
         global $smarty;
         if (!empty($_LANG['ncssl_custom_phrase_sslconfigcompletedetails'])) {
@@ -1623,7 +1733,9 @@ function namecheapssl_SSLStepThree($params) {
             $smarty->assign('LANG', $LANG);
         }
     }else{
-        mysql_query("UPDATE `mod_namecheapssl` SET file_name='" . mysql_real_escape_string($fileName) . "', file_content='' WHERE id=''");
+        // query changed 16.04
+        $sql = "UPDATE mod_namecheapssl SET file_name='', file_content='' WHERE id='".(int)$sslOrderCustomInfo['id'] ."'";
+        NcSql::q($sql);
     }
     //
     // http based validation values
@@ -1637,38 +1749,18 @@ function namecheapssl_SSLStepThree($params) {
 function namecheapssl_Renew($params) {
 
     if (!namecheapssl_check_install()) {
-        return
-                "Namecheap SSL Module error. Addon Module Namecheap SSL Module Addon hasn't been activated/upgraded. Please go to Setup - Addon Modules and perform activation/go to addon page."
-        ;
+        return "Namecheap SSL Module error. Addon Module Namecheap SSL Module Addon hasn't been activated/upgraded. Please go to Setup - Addon Modules and perform activation/go to addon page.";
     }
 
     global $CONFIG;
-
-    $_namecheapSSLTypes = namecheapssl_getSslTypes();
-    if (!$_namecheapSSLTypes)
-        return 'Unable to retrieve list of supported certificate-types. Please try again in several minutes.';
+    
+    
     $_fields = namecheapssl_getModuleConfigFields();
     $_webServerTypes = namecheapssl_getWebServerTypes();
 
-    require_once dirname(__FILE__) . "/namecheapapi.php";
 
-    $testmode = isset($params['TestMode']) ? (bool) $params['TestMode'] : (bool) $params['configoption9'];
-    $debugmode = isset($params['DebugMode']) ? (bool) $params['DebugMode'] : (bool) $params['configoption21'];
-
-    if ($testmode) {
-        $username = isset($params[$_fields['SandboxUsername']]) ? $params[$_fields['SandboxUsername']] : $params['configoption3'];
-        $password = isset($params[$_fields['SandboxApiKey']]) ? $params[$_fields['SandboxApiKey']] : $params['configoption4'];
-    } else {
-        $username = isset($params[$_fields['Username']]) ? $params[$_fields['Username']] : $params['configoption1'];
-        $password = isset($params[$_fields['ApiKey']]) ? $params[$_fields['ApiKey']] : $params['configoption2'];
-    }
-
-    $sql = "select `tblsslorders`.*, `tblhosting`.`billingcycle`
-              from `tblsslorders`
-         left join `tblhosting` on (`tblhosting`.`id` = `tblsslorders`.`serviceid`)
-             where `serviceid` = '" . (int) $params["serviceid"] . "'";
-    $result = mysql_query($sql);
-    $certificateOrderData = mysql_fetch_array($result, MYSQL_ASSOC);
+    $sql = "SELECT tblsslorders.*, tblhosting.billingcycle FROM tblsslorders LEFT JOIN tblhosting ON (tblhosting.id = tblsslorders.serviceid) WHERE serviceid = '" . (int) $params["serviceid"] . "'";
+    $certificateOrderData = NcSql::sql2row($sql);
 
     $cycles = array('Annually' => 1, 'Biennially' => 2, 'Triennially' => 3);
 
@@ -1677,24 +1769,25 @@ function namecheapssl_Renew($params) {
         "SSLType" => $certificateOrderData['certtype']
     );
 
+    
     try {
-        $api = new NamecheapApi($username, $password, $testmode, $debugmode);
+        $api = _namecheapssl_initApi($params);
         $response = $api->request("namecheap.ssl.renew", $request_params);
         $result = $api->parseResponse($response);
 
         $certId = (int) $result['SSLRenewResult']['@attributes']['CertificateID'];
 
         if (0 == $certId) {
-            return "An error ocurred: invalid remote id recieved for renewal: " . mysql_real_escape_string($result['SSLRenewResult']['@attributes']['CertificateID']);
+            return "An error ocurred: invalid remote id recieved for renewal: " . $result['SSLRenewResult']['@attributes']['CertificateID'];
         }
 
-        $status = "Incomplete";
-        if (version_compare("4.5.2", $CONFIG['Version'], "<=")) {
-            $status = "Awaiting Configuration";
-        }
-
-        mysql_query("update `tblsslorders` set `remoteid` = '" . $certId . "', `status` = '" . $status . "' where `id` = '" . $certificateOrderData['id'] . "'");
-        mysql_query("update `mod_namecheapssl` set `certificate_id` = '" . $certId . "' where `mod_namecheapssl`.`id` ='" . $certificateOrderData['id'] . "'");
+        $status = _namecheapssl_getIncompleteStatus();
+        
+        $sql = "UPDATE tblsslorders SET remoteid = '" . (int)$certId . "', status = '" . NcSql::e($status) . "' WHERE id = '" . (int)$certificateOrderData['id'] . "'";
+        NcSql::q($sql);
+        
+        $sql = "UPDATE mod_namecheapssl SET reissue=0, certificate_id='" . (int)$certId . "' WHERE mod_namecheapssl.id = '" . (int)$certificateOrderData['id'] . "'";
+        NcSql::q($sql);
 
         $sslconfigurationlink = $CONFIG["SystemURL"] . "/configuressl.php?cert=" . md5($certificateOrderData['id']);
         $sslconfigurationlink = "<a href=\"$sslconfigurationlink\">$sslconfigurationlink</a>";
@@ -1702,28 +1795,29 @@ function namecheapssl_Renew($params) {
         sendMessage("SSL Certificate Configuration Required", $params["serviceid"], array("ssl_configuration_link" => $sslconfigurationlink));
 
         namecheapssl_log('system.renew', 'renewed', array($certificateOrderData['remoteid'], $certId), $params['serviceid']);
+        
     } catch (Exception $e) {
-
         return "An error occured: " . $e->getMessage();
     }
+    
     return "success";
 }
 
-function namecheapssl_AdminCustomButtonArray() {
+function namecheapssl_AdminCustomButtonArray(){
 
     $buttonarray = array(
         "Cancel" => "cancel",
         "Resend Configuration Email" => "resend",
         "Reissue Certificate" => "adminstartreissue",
         "Synchronize with Namecheap" => "sync",
-            //'test'=>'test'
     );
+    
+    #### $buttonarray["Reset reissue status"] = "adminresetreissue";
+    #### buttonarray["Renew"] = "renew";
+    
     return $buttonarray;
 }
 
-function namecheapssl_test($params) {
-    
-}
 
 function namecheapssl_cancel($params) {
     global $_LANG;
@@ -1745,8 +1839,9 @@ function namecheapssl_cancel($params) {
 function namecheapssl_resend($params) {
     global $CONFIG, $_LANG;
 
-    $result = select_query("tblsslorders", "id", array("serviceid" => $params["serviceid"]));
-    $data = mysql_fetch_array($result);
+    $sql = "SELECT id FROM tblsslorders WHERE serviceid='" . (int)$params['serviceid'] . "'";
+    $data = NcSql::sql2row($sql);
+    
     $id = $data["id"];
     if (!$id) {
         return $_LANG['ncssl_no_certificate_exists'];
@@ -1763,6 +1858,7 @@ function namecheapssl_resend($params) {
     return 'success';
 }
 
+
 function namecheapssl_adminstartreissue($params) {
 
     if (!namecheapssl_check_install()) {
@@ -1770,26 +1866,22 @@ function namecheapssl_adminstartreissue($params) {
                 "Namecheap SSL Module error. Addon Module Namecheap SSL Module Addon hasn't been activated/upgraded. Please go to Setup - Addon Modules and perform activation/go to addon page."
         ;
     }
-
+    
     global $CONFIG, $_LANG;
-
-
     namecheapssl_initlang();
 
 
-    $sql = "select * from `tblsslorders` where serviceid = '" . (int) $params['serviceid'] . "'";
-    $data = mysql_fetch_array(mysql_query($sql), MYSQL_ASSOC);
-
-
+    $sql = "SELECT * FROM tblsslorders WHERE serviceid = '" . (int) $params['serviceid'] . "'";
+    $data = NcSql::sql2row($sql);
+    
+    
     if (empty($data['remoteid'])) {
         return "Remote id is missing";
     }
 
     $aSertificateInfo = _namecheapssl_getCertificateInfo($params, $data['remoteid']);
 
-
     $sProviderName = $aSertificateInfo["SSLGetInfoResult"]["Provider"]["Name"];
-
     $sCommonName = $aSertificateInfo["SSLGetInfoResult"]["CertificateDetails"]["CommonName"];
 
     if ('active' != $aSertificateInfo["SSLGetInfoResult"]['@attributes']['Status']) {
@@ -1799,15 +1891,15 @@ function namecheapssl_adminstartreissue($params) {
 
 
     // 1. update whmcs sertificate status
-    mysql_query("UPDATE `mod_namecheapssl` SET reissue=1 WHERE certificate_id='{$data['remoteid']}'");
+    $sql = "UPDATE mod_namecheapssl SET reissue=1 WHERE certificate_id='". (int)$data['remoteid']."'";
+    NcSql::q($sql);
 
-    $status = "Incomplete";
-    if (version_compare("4.5.2", $CONFIG['Version'], "<=")) {
-        $status = "Awaiting Configuration";
-    }
-
-    mysql_query("UPDATE `tblsslorders` SET status='$status' WHERE id='{$data['id']}'");
-
+    $status = _namecheapssl_getIncompleteStatus();
+    
+    $sql = "UPDATE tblsslorders SET status='$status' WHERE id='".(int)$data['id']."'";
+    NcSql::q($sql);
+    
+    
     // 2. send SSL Certificate Reissue Invitation
 
     $sslconfigurationlink = $CONFIG["SystemURL"] . "/configuressl.php?cert=" . md5($data['id']);
@@ -1824,11 +1916,8 @@ function namecheapssl_adminstartreissue($params) {
     
     /*{
         $sLink = _get_provider_reissue_link($sProviderName);
-
         $sMessage = $_LANG['ncssl_client_reissue_notice_1'] . ' ' . "<a target=\"_blank\" href=\"$sLink?domain=$sCommonName\">$sLink?domain=$sCommonName</a>" . "\n\n" . $_LANG['ncssl_client_reissue_notice_3'];
-
         namecheapssl_log('admin.initReissue', 'admin_init_reissue_link', array($sProviderName, $data['remoteid'], $sLink), $params['serviceid']);
-
         if (version_compare("5.0.0", $CONFIG['Version'], "<=")) {
             return strip_tags($sMessage);
         } else {
@@ -1838,146 +1927,30 @@ function namecheapssl_adminstartreissue($params) {
     
 }
 
-function namecheapssl_SSLStepThreeReissue($params) {
-
-
-
-    $testmode = isset($params['TestMode']) ? (bool) $params['TestMode'] : (bool) $params['configoption9'];
-    $debugmode = isset($params['DebugMode']) ? (bool) $params['DebugMode'] : (bool) $params['configoption21'];
-
-    $_fields = namecheapssl_getModuleConfigFields();
-
-    require_once dirname(__FILE__) . "/namecheapapi.php";
-
-    if ($testmode) {
-        $username = isset($params[$_fields['SandboxUsername']]) ? $params[$_fields['SandboxUsername']] : $params['configoption3'];
-        $password = isset($params[$_fields['SandboxApiKey']]) ? $params[$_fields['SandboxApiKey']] : $params['configoption4'];
-    } else {
-        $username = isset($params[$_fields['Username']]) ? $params[$_fields['Username']] : $params['configoption1'];
-        $password = isset($params[$_fields['ApiKey']]) ? $params[$_fields['ApiKey']] : $params['configoption2'];
-    }
-
-    $sql = "select * from `tblsslorders` where serviceid = '" . (int) $params['serviceid'] . "'";
-    $cert = mysql_fetch_array(mysql_query($sql), MYSQL_ASSOC);
-
-    // get certificate info
-    try {
-        $request_params = array('CertificateID' => (int) $cert['remoteid']);
-
-        $api = new NamecheapApi($username, $password, $testmode, $debugmode);
-        $response = $api->request("namecheap.ssl.getInfo", $request_params);
-        $result = $api->parseResponse($response);
-        $sProviderName = $result["SSLGetInfoResult"]["Provider"]["Name"];
-    } catch (Exception $e) {
-        return $e->getMessage();
-    }
-
-
-    // Comodo certs can be reissued via an API 
-    if ('COMODO' == $sProviderName) {
-
-        $_webServerTypes = namecheapssl_getWebServerTypes();
-
-        $params['configdata'] = unserialize(array_shift(mysql_fetch_assoc(mysql_query("SELECT configdata FROM `tblsslorders` WHERE serviceid='{$params['serviceid']}'"))));
-
-        $requestParams = array(
-            'CertificateID' => $cert['remoteid'],
-            'ApproverEmail' => $params['configdata']["approveremail"],
-            'csr' => $params['configdata']["csr"],
-            'WebServerType' => $_webServerTypes[$params['configdata']['servertype']],
-            'AdminEmailAddress' => $params['configdata']["email"],
-            'AdminFirstName' => $params['configdata']["firstname"],
-            'AdminLastName' => $params['configdata']["lastname"],
-            'AdminOrganizationName' => $params['configdata']["orgname"],
-            'AdminAddress1' => $params['configdata']["address1"],
-            'AdminAddress2' => $params['configdata']["address2"],
-            'AdminJobTitle' => $params['configdata']["jobtitle"],
-            'AdminCity' => $params['configdata']["city"],
-            'AdminStateProvince' => $params['configdata']["state"],
-            'AdminPostalCode' => $params['configdata']["postcode"],
-            'AdminCountry' => $params['configdata']["country"],
-            'AdminPhone' => $params['configdata']["phonenumber"]
-        );
-
-
-
-        // added 24 jul 2012: COMODO cert additional fields
-        if (!empty($params['configdata']['fields'])) {
-
-            foreach ($params['configdata']['fields'] as $k => $v) {
-                if ('OrganizationRepCallbackMethod' == $k || 'OrganizationRepCallbackDestinationSame' == $k) {
-                    $v = strtolower($v);
-                }
-                $requestParams[$k] = $v;
-            }
-        }
-        // 
-
-
-
-        try {
-            $response = $api->request("namecheap.ssl.reissue", $requestParams);
-            $result = $api->parseResponse($response);
-
-            // added 20/02/2012 - whmcs 4.4.2 compatibility
-            if (!empty($_SESSION['namecheapssl'])) {
-                unset($_SESSION['namecheapssl']);
-            }
-            // end: added 20/02/2012 - whmcs 4.4.2 compatibility
-        } catch (Exception $e) {
-            return array('error' => $e->getMessage());
-        }
-
-
-        // replace sertificate id
-        mysql_query("UPDATE `tblsslorders` SET remoteid='{$result['SSLReissueResult']['@attributes']['ID']}' WHERE remoteid='{$cert['remoteid']}'");
-        mysql_query("UPDATE `mod_namecheapssl` SET certificate_id='{$result['SSLReissueResult']['@attributes']['ID']}', reissue='0' WHERE certificate_id='{$cert['remoteid']}'");
-
-        namecheapssl_log('client.reissue', 'client_reissue', array($cert['remoteid'], $result['SSLReissueResult']['@attributes']['ID']), $params['serviceid']);
-
-        return $values;
-    }
-
-    return array('error' => 'unknown provider name');
-}
 
 function namecheapssl_sync($params) {
-
+    
     global $CONFIG;
-
-    $_namecheapSSLTypes = namecheapssl_getSslTypes();
-    if (!$_namecheapSSLTypes)
-        return 'Unable to retrieve list of supported certificate-types.';
+    
+    
     $_fields = namecheapssl_getModuleConfigFields();
     $_webServerTypes = namecheapssl_getWebServerTypes();
-
-    require_once dirname(__FILE__) . "/namecheapapi.php";
-
-    $testmode = isset($params['TestMode']) ? (bool) $params['TestMode'] : (bool) $params['configoption9'];
-    $debugmode = isset($params['DebugMode']) ? (bool) $params['DebugMode'] : (bool) $params['configoption21'];
-
-    if ($testmode) {
-        $username = isset($params[$_fields['SandboxUsername']]) ? $params[$_fields['SandboxUsername']] : $params['configoption3'];
-        $password = isset($params[$_fields['SandboxApiKey']]) ? $params[$_fields['SandboxApiKey']] : $params['configoption4'];
-    } else {
-        $username = isset($params[$_fields['Username']]) ? $params[$_fields['Username']] : $params['configoption1'];
-        $password = isset($params[$_fields['ApiKey']]) ? $params[$_fields['ApiKey']] : $params['configoption2'];
-    }
-
-
-    $sql = "select * from `tblsslorders` where serviceid = '" . (int) $params['serviceid'] . "'";
-    $cert = mysql_fetch_array(mysql_query($sql), MYSQL_ASSOC);
-
+    
+    
+    $sql = "SELECT * FROM tblsslorders WHERE serviceid = '".(int)$params['serviceid']."'";
+    $cert = NcSql::sql2row($sql);
+    
+    
     if (empty($cert['remoteid'])) {
         return "Unknown RemoteId for this product.";
     }
-
-
+    
+    
     try {
 
         $request_params = array('CertificateID' => (int) $cert['remoteid']);
 
-        $api = new NamecheapApi($username, $password, $testmode, $debugmode);
+        $api = _namecheapssl_initApi($params);
         $response = $api->request("namecheap.ssl.getInfo", $request_params);
         $result = $api->parseResponse($response);
 
@@ -1986,12 +1959,11 @@ function namecheapssl_sync($params) {
         $expireDate = $result['SSLGetInfoResult']['@attributes']['Expires'];
         if (!empty($expireDate)) {
             list($month, $day, $year) = explode("/", $expireDate);
-            $duedate = mysql_real_escape_string("$year-$month-$day");
-            $sql = "update `tblhosting`
-                   set `nextduedate` = '$duedate',
-                       `nextinvoicedate` = '$duedate'
-                 where `id` = '" . (int) $params['serviceid'] . "'";
-            mysql_query($sql);
+            $duedate = "$year-$month-$day";
+            
+            $sql = "UPDATE tblhosting SET nextduedate = '".  NcSql::e($duedate)."', nextinvoicedate = '".  NcSql::e($duedate)."' WHERE id = '" . (int) $params['serviceid'] . "'";
+            NcSql::q($sql);
+            
             namecheapssl_log('admin.sync', 'admin_sync_updated_duedate', array("$year-$month-$day"), $params['serviceid']);
         }
 
@@ -1999,24 +1971,27 @@ function namecheapssl_sync($params) {
 
         // sync domain name
         if (!empty($result['SSLGetInfoResult']['CertificateDetails']['CommonName'])) {
-            $domain = mysql_real_escape_string($result['SSLGetInfoResult']['CertificateDetails']['CommonName']);
-            $sql = "update `tblhosting`
-                   set `domain` = '$domain'                       
-                   where `id` = '" . (int) $params['serviceid'] . "'";
-            mysql_query($sql);
+            
+            $domain = $result['SSLGetInfoResult']['CertificateDetails']['CommonName'];
+            
+            $sql = "UPDATE tblhosting SET domain = '".NcSql::e($domain)."' WHERE id = '" . (int) $params['serviceid'] . "'";
+            NcSql::q($sql);
+            
             namecheapssl_log('admin.sync', 'admin_sync_updated_domain', array($domain), $params['serviceid']);
         }
 
         // sync remote id for "replaced" items
         if ('replaced' == $result['SSLGetInfoResult']['@attributes']['Status']) {
-            $sql = "update `tblsslorders` SET remoteid='{$result['SSLGetInfoResult']['@attributes']['ReplacedBy']}' WHERE serviceid='" . (int) $params['serviceid'] . "'";
-            mysql_query($sql);
+            
+            $sql = "UPDATE tblsslorders SET remoteid='" . (int)$result['SSLGetInfoResult']['@attributes']['ReplacedBy']."' WHERE serviceid='" . (int)$params['serviceid'] . "'";
+            NcSql::q($sql);
 
             // added 07-03-2013. not required.
-            $sql = "update `mod_namecheapssl` SET certificate_id='{$result['SSLGetInfoResult']['@attributes']['ReplacedBy']}' WHERE id='{$cert['id']}'";
-            mysql_query($sql);
+            $sql = "UPDATE mod_namecheapssl SET certificate_id='".(int)$result['SSLGetInfoResult']['@attributes']['ReplacedBy']."' WHERE id='". (int)$cert['id']."'";
+            NcSql::q($sql);
 
             namecheapssl_log('admin.sync', 'admin_sync_updated_remoteid', array($cert['remoteid'], $result['SSLGetInfoResult']['@attributes']['ReplacedBy']), $params['serviceid']);
+            
         }
     } catch (Exception $e) {
         return $e->getMessage();
@@ -2033,22 +2008,9 @@ function namecheapssl_AdminServicesTabFields($params) {
 
     if (isset($_REQUEST['viewDetails'])) {
 
-        require_once dirname(__FILE__) . "/namecheapapi.php";
-
-
-        $testmode = isset($params['TestMode']) ? (bool) $params['TestMode'] : (bool) $params['configoption9'];
-        $debugmode = isset($params['DebugMode']) ? (bool) $params['DebugMode'] : (bool) $params['configoption21'];
-
-        if ($testmode) {
-            $username = isset($params[$_fields['SandboxUsername']]) ? $params[$_fields['SandboxUsername']] : $params['configoption3'];
-            $password = isset($params[$_fields['SandboxApiKey']]) ? $params[$_fields['SandboxApiKey']] : $params['configoption4'];
-        } else {
-            $username = isset($params[$_fields['Username']]) ? $params[$_fields['Username']] : $params['configoption1'];
-            $password = isset($params[$_fields['ApiKey']]) ? $params[$_fields['ApiKey']] : $params['configoption2'];
-        }
-
-        $sql = "select * from `tblsslorders` where serviceid = '" . (int) $params['serviceid'] . "'";
-        $cert = mysql_fetch_array(mysql_query($sql), MYSQL_ASSOC);
+        
+        $sql = "SELECT * FROM tblsslorders WHERE serviceid='" . (int)$params['serviceid'] . "'";
+        $cert = NcSql::sql2row($sql);
         
         $configdata = @unserialize($cert['configdata']);
         
@@ -2072,14 +2034,20 @@ function namecheapssl_AdminServicesTabFields($params) {
         try {
             $request_params = array('CertificateID' => (int) $cert['remoteid']);
 
-            $api = new NamecheapApi($username, $password, $testmode, $debugmode);
+            $api = _namecheapssl_initApi($params);
             $response = $api->request("namecheap.ssl.getInfo", $request_params);
             $result = $api->parseResponse($response);
-
-
+            
+            
             if (!empty($result['SSLGetInfoResult']['CertificateDetails']['CSR'])) {
-                $csr_result = $api->parseResponse($api->request("namecheap.ssl.parseCSR", array('csr' => $result['SSLGetInfoResult']['CertificateDetails']['CSR'])));
+                
+                $csr_result = $api->parseResponse($api->request("namecheap.ssl.parseCSR", array(
+                    'csr' => $result['SSLGetInfoResult']['CertificateDetails']['CSR'],
+                    'CertificateType' => $result['SSLGetInfoResult']['@attributes']['Type']
+                    )));
+                
             }
+            
         } catch (Exception $e) {
             $fieldsarray = array("Certificate Info" => $e->getMessage());
             return $fieldsarray;
@@ -2092,7 +2060,7 @@ function namecheapssl_AdminServicesTabFields($params) {
         $vw_csr = $csr_result['SSLParseCSRResult']['CSRDetails'];
         
         
-
+        
         $html = "
     
     <fieldset style=\"margin:10px 0\">
@@ -2154,66 +2122,118 @@ function namecheapssl_AdminServicesTabFields($params) {
 	";
         $fieldsarray = array("Certificate Info" => $html);
     } else {
+        
         $fieldsarray = array("Certificate Info" => '<input type="button" value="' . $_LANG['ncssl_admin_viewdetails_button'] . '" onclick="window.location=\'?userid=' . $params['clientdetails']['userid'] . '&id=' . $params['serviceid'] . '&viewDetails\'" />');
+        
     }
-
-
+    
+    
+    $revokeManager = _namecheapssl_getRevokeManager($params);
+    if($revokeManager -> showButton()){
+        $fieldsarray[''] = '<input type="button" value="Revoke old certificates" onclick="if(confirm(\'' . $_LANG['ncssl_revoke_confirmation_text'] . '\')){ runModuleCommand(\'custom\',\'revoke\')}" />';
+    }
+    
+    
     return $fieldsarray;
-}
-
-function namecheapssl_AdminViewDetails($params) {
     
 }
 
-function namecheapssl_call($apiUser, $apiKey, $command, $data) {
 
-    $ip = isset($_SERVER['HTTP_X_FORWARDED_FOR']) ? $_SERVER['HTTP_X_FORWARDED_FOR'] : $_SERVER["REMOTE_ADDR"];
-    $requestData = array(
-        'ApiUser' => $apiUser,
-        'ApiKey' => $apiKey,
-        'Command' => $command,
-        'UserName' => $apiUser,
-        'ClientIp' => $ip
-    );
-    $requestData = array_merge($requestData, $data);
-
-    $params = array(
-        'http' => array(
-            'method' => 'POST',
-            'header' => 'Content-type: application/x-www-form-urlencoded',
-            'content' => http_build_query($requestData)
-        )
-    );
-    $context = stream_context_create($params);
-    $response = file_get_contents($this->_apiHost, false, $context);
-    if (false === $response) {
-        return array('error' => 'Unable to read from remote url');
+function namecheapssl_Revoke($params){
+    
+    $revokeManager = _namecheapssl_getRevokeManager($params);
+    $localCertInfo = _namecheapssl_getLocalCertInfo($params['serviceid']);
+    
+    
+    $descriptions = array();
+    
+    $ids = $revokeManager->getRemoteIdForRevocation();
+    
+    if ('COMODO'!=$localCertInfo->getProvider() && count($ids)>1){
+        return $_LANG['ncssl_error_revoke_4'];
     }
-
-    $result = array();
-
-    $xml = simplexml_load_string($response);
-    if ('ERROR' == (string) $xml['Status']) {
-        return array('error' => (string) $xml->Errors->Error[0]);
-    } else {
-        $result['data'] = _xmlToArray($xml->CommandResponse);
+    
+    
+    foreach($ids as $id){
+        
+        $api = _namecheapssl_initApi($params);
+        $request_params = array(
+            "CertificateID" => $id,
+            "CertificateType" => $localCertInfo->getType()
+        );
+        
+        try{
+            
+            $response = $api->request("namecheap.ssl.revokecertificate", $request_params);
+            $result = $api->parseResponse($response);
+            
+            if(isset($result['RevokeCertificateResult']['Description'])){
+                $descriptions[] = $result['RevokeCertificateResult']['Description'];
+            }
+            $revokeManager->setRemoteIdRevoked($id);
+            
+        } catch (Exception $e) {
+            $message = $e->getMessage();
+            return $message;
+        }
+        
     }
+    
+    
+    $replacedDescriptions = array();
+    if(!empty($descriptions)){
+        foreach($descriptions as $k => $description){
+            if (false!==stripos($description,'At this time, revocation of this certificate is available from the')){
+                $replacedDescriptions[] = 1;
+            }
+            if (false!==stripos($description,'If not approved, revocation request will expire in 72 hours. Once revocation email is approved, certificate will be revoked by the certificate authority')){
+                $replacedDescriptions[] = 2;
+            }
+            if (false!==stripos($description,'The revocation will be processed manually between us and Symantec')){
+                $replacedDescriptions[] = 3;
+            }
+        }
+    }
+    
+    
+    if (!empty($replacedDescriptions)){
+        
+        if (defined("ADMINAREA") || count($replacedDescriptions)>1){
+            $messageArray = array();
+            foreach($replacedDescriptions as $code){
+                $messageArray[] = $_LANG['ncssl_error_revoke_'.$code];
+            }
+            return implode(';',$messageArray);
+        }else{
+            
+            // client Area, single message
+            global $CONFIG;
+            $location =  $CONFIG['SystemURL'] . '?m=namecheap_ssl&revoke_message='.$replacedDescriptions[0].'&serviceid='.$params['serviceid'];
+            header("Location: $location");
+            exit();
+            
+        }
+        
+        
+        
+    }
+    
+    
+    
+    return 'success';
+    
 }
 
-function _xmlToArray($data) {
-    if (is_object($data))
-        $data = get_object_vars($data);
-    return is_array($data) ? array_map("_xmlToArray", $data) : $data;
-}
 
 function namecheapssl_ClientArea($params) {
 
     global $_LANG;
     namecheapssl_initlang();
-
-    $query = "select * from `tblsslorders` where `serviceid` = '" . (int) $params['serviceid'] . "'";
-    $cert = mysql_fetch_array(mysql_query($query), MYSQL_ASSOC);
-
+    
+    $sql = "SELECT * FROM tblsslorders WHERE serviceid = '" . (int)$params['serviceid'] . "'";
+    $cert = NcSql::sql2row($sql);
+    
+    
     if (!empty($cert) && !empty($cert['id'])) {
 
         $code = '<span><form action="clientarea.php?action=productdetails" method="post">' . "\n";
@@ -2232,26 +2252,25 @@ function namecheapssl_ClientAreaCustomButtonArray($params) {
     global $CONFIG, $_LANG;
     namecheapssl_initlang();
     
-    
-    $status = 'not_exists';    
-    
-    
-    $buttonarray = array(        
-        $_LANG['ncssl_view_certificate_details'] => "viewdetails"        
-    );
+    $status = 'not_exists';
     
     // get remoteid
-    $r = mysql_query("SELECT `tblsslorders`.`id`,
-                                  `tblsslorders`.`remoteid`,
-                                  `tblsslorders`.`configdata`,
-                                  `mod_namecheapssl`.`admin_email`,
-                                  `mod_namecheapssl`.`file_name`                                  
-                             FROM `tblsslorders`
-                             JOIN `mod_namecheapssl`
+    $sql = "SELECT tblsslorders.id,
+                                  tblsslorders.remoteid,
+                                  tblsslorders.configdata,
+                                  mod_namecheapssl.admin_email,
+                                  mod_namecheapssl.file_name
+                             FROM tblsslorders
+                             JOIN mod_namecheapssl
                              USING (id)
-                             WHERE `tblsslorders`.`serviceid` = " . (int) $params['serviceid']);
-    $row = mysql_fetch_assoc($r);
+                             WHERE tblsslorders.serviceid = '" . (int)$params['serviceid'] . "'";
+    $row = NcSql::sql2row($sql);
     
+    if($row){
+        $buttonarray = array(        
+            $_LANG['ncssl_view_certificate_details'] => "viewdetails"        
+        );
+    }
     
     if($row && !empty($row['remoteid'])){
         
@@ -2260,23 +2279,28 @@ function namecheapssl_ClientAreaCustomButtonArray($params) {
         $status = $result['SSLGetInfoResult']['@attributes']['Status'];
         
         if('active'==$status){
-            
             $buttonarray[$_LANG['ncssl_reissue_certificate']] = "clientstartreissue";
             $buttonarray[$_LANG['ncssl_download_certificate']] = 'download';
-            //$buttonarray[$_LANG['ncssl_resend_certificate']] = "resendcert";
-            
         }else{
-            
             if(!empty($row['file_name'])){
                 $buttonarray[$_LANG['ncssl_show_validation_file_contents']] = 'show_validation_file_contents';
             }else{
                 $buttonarray[$_LANG['ncssl_resend_approver_email']] = "resendapprove";
             }
-            
+        }
+        
+        
+        // revoke button
+        $revokeManager = _namecheapssl_getRevokeManager($params);
+        if($revokeManager -> showButton()){
+            $buttonarray[$_LANG['ncssl_revoke_button']] = 'revoke';
         }
         
         
     }
+    
+    //$buttonarray['test'] = 'test';
+    //$buttonarray[$_LANG['ncssl_revoke_button']] = 'revoke';
     
     /*$buttonarray = array(
         $_LANG['ncssl_resend_approver_email'] => "resendapprove",
@@ -2288,34 +2312,31 @@ function namecheapssl_ClientAreaCustomButtonArray($params) {
     );*/
     
     return $buttonarray;
+    
 }
 
+
+function namecheapssl_test($params){
+}
+
+
 function namecheapssl_resendapprove($params) {
+    
     global $CONFIG, $_LANG;
     namecheapssl_initlang();
 
     $_fields = namecheapssl_getModuleConfigFields();
     $_webServerTypes = namecheapssl_getWebServerTypes();
 
-    require_once dirname(__FILE__) . "/namecheapapi.php";
-
-    $testmode = isset($params['TestMode']) ? (bool) $params['TestMode'] : (bool) $params['configoption9'];
-    $debugmode = isset($params['DebugMode']) ? (bool) $params['DebugMode'] : (bool) $params['configoption21'];
-
-    if ($testmode) {
-        $username = isset($params[$_fields['SandboxUsername']]) ? $params[$_fields['SandboxUsername']] : $params['configoption3'];
-        $password = isset($params[$_fields['SandboxApiKey']]) ? $params[$_fields['SandboxApiKey']] : $params['configoption4'];
-    } else {
-        $username = isset($params[$_fields['Username']]) ? $params[$_fields['Username']] : $params['configoption1'];
-        $password = isset($params[$_fields['ApiKey']]) ? $params[$_fields['ApiKey']] : $params['configoption2'];
-    }
 
     $serviceId = (int) $params['serviceid'];
-    $result = mysql_query("select * from `tblsslorders` where `serviceid` = '" . $serviceId . "'");
-    $data = mysql_fetch_array($result);
+    
+    $sql = "SELECT * FROM tblsslorders WHERE serviceid = '" . (int)$serviceId . "'";
+    $data = NcSql::sql2row($sql);
+    
     $certID = $data['remoteid'];
-
-
+    
+    
     $type = $data['certtype'];
     $noResendTypes = array("RapidSSL",
         "QuickSSL",
@@ -2340,11 +2361,12 @@ function namecheapssl_resendapprove($params) {
 
         $request_params = array('CertificateID' => $certID);
 
-        $api = new NamecheapApi($username, $password, $testmode, $debugmode);
+        $api = _namecheapssl_initApi($params);
         $response = $api->request("namecheap.ssl.resendApproverEmail", $request_params);
         $result = $api->parseResponse($response);
 
         namecheapssl_log('client.resendApproverEmail', 'client_resend_approver_email', null, $params['serviceid']);
+        
     } catch (Exception $e) {
 
 
@@ -2357,9 +2379,6 @@ function namecheapssl_resendapprove($params) {
     return "success";
 }
 
-function namecheapssl_istest($params) {
-    $_fields = namecheapssl_getModuleConfigFields();
-}
 
 function namecheapssl_viewdetails($params) {
     global $CONFIG, $_LANG;
@@ -2368,30 +2387,18 @@ function namecheapssl_viewdetails($params) {
     $_fields = namecheapssl_getModuleConfigFields();
     $_webServerTypes = namecheapssl_getWebServerTypes();
 
-    require_once dirname(__FILE__) . "/namecheapapi.php";
 
-    $testmode = isset($params['TestMode']) ? (bool) $params['TestMode'] : (bool) $params['configoption9'];
-    $debugmode = isset($params['DebugMode']) ? (bool) $params['DebugMode'] : (bool) $params['configoption21'];
-
-    if ($testmode) {
-        $username = isset($params[$_fields['SandboxUsername']]) ? $params[$_fields['SandboxUsername']] : $params['configoption3'];
-        $password = isset($params[$_fields['SandboxApiKey']]) ? $params[$_fields['SandboxApiKey']] : $params['configoption4'];
-    } else {
-        $username = isset($params[$_fields['Username']]) ? $params[$_fields['Username']] : $params['configoption1'];
-        $password = isset($params[$_fields['ApiKey']]) ? $params[$_fields['ApiKey']] : $params['configoption2'];
-    }
-
-    $result = mysql_query("SELECT `tblsslorders`.`id`,
-                                  `tblsslorders`.`remoteid`,
-                                  `tblsslorders`.`configdata`,
-                                  `mod_namecheapssl`.`admin_email`,
-                                  `mod_namecheapssl`.`file_name`                                  
-                             FROM `tblsslorders`
-                             JOIN `mod_namecheapssl`
+    $sql = "SELECT tblsslorders.id,
+                                  tblsslorders.remoteid,
+                                  tblsslorders.configdata,
+                                  mod_namecheapssl.admin_email,
+                                  mod_namecheapssl.file_name
+                             FROM tblsslorders
+                             JOIN mod_namecheapssl
                              USING (id)
-                             WHERE `tblsslorders`.`serviceid` = " . (int) $params['serviceid']);
+                             WHERE tblsslorders.serviceid = '" . (int) $params['serviceid'] . "'";
+    $data = NcSql::sql2row($sql);
     
-    $data = mysql_fetch_array($result, MYSQL_ASSOC);
     $certID = $data['remoteid'];
     $sslorderid = $data['id'];
     $adminEmail = $data['admin_email'];
@@ -2412,7 +2419,7 @@ function namecheapssl_viewdetails($params) {
         try {
             $request_params = array('CertificateID' => $certID);
 
-            $api = new NamecheapApi($username, $password, $testmode, $debugmode);
+            $api = _namecheapssl_initApi($params);
             $response = $api->request("namecheap.ssl.getInfo", $request_params);
             $result = $api->parseResponse($response);
 
@@ -2444,9 +2451,15 @@ function namecheapssl_viewdetails($params) {
         }
     } else {
         $status = 'not_exists';
+        // (remote id doesn't exist)
     }
 
     $sslconfigurationlink = "configuressl.php?cert=" . md5($sslorderid);
+    
+    
+    $revokeManager = _namecheapssl_getRevokeManager($params);
+    $showRevokeButton = $revokeManager -> showButton();
+    
     
     $pagearray = array(
         'templatefile' => 'viewdetails',
@@ -2462,7 +2475,9 @@ function namecheapssl_viewdetails($params) {
             'configlink' => $sslconfigurationlink,
             'confighash' => md5($sslorderid),
             'adminEmail' => $adminEmail,
+            
             'httpBasedValidation' => !empty($fileName),
+            'showRevokeButton' => $showRevokeButton,
             
             'sansCount' => $sansCount,
             'sans'=>join(',',$sans)
@@ -2479,11 +2494,10 @@ function namecheapssl_show_validation_file_contents($params){
     global $_LANG;
     namecheapssl_initlang();
     
-    $r = mysql_query(
-            " SELECT mod_namecheapssl.file_name, mod_namecheapssl.file_content FROM ".
-            " mod_namecheapssl JOIN tblsslorders USING (id) WHERE tblsslorders.serviceid=" . (int)$params['serviceid']
-            );
-    $row = mysql_fetch_assoc($r);
+    $sql =  " SELECT mod_namecheapssl.file_name, mod_namecheapssl.file_content FROM ".
+            " mod_namecheapssl JOIN tblsslorders USING (id) WHERE tblsslorders.serviceid='" . (int)$params['serviceid'] . "'";
+    
+    $row = NcSql::sql2row($sql);
     
     $phrase = $_LANG['ncssl_custom_phrase_sslconfigcompletedetails'];
     $phrase = str_replace('%filename%', $row['file_name'], $phrase);
@@ -2503,12 +2517,10 @@ function namecheapssl_show_validation_file_contents($params){
 
 function namecheapssl_download($params){
     
-    $r = mysql_query(
-            " SELECT tblsslorders.remoteid,tblsslorders.configdata FROM ".
-            " mod_namecheapssl JOIN tblsslorders USING (id) WHERE tblsslorders.serviceid=" . (int)$params['serviceid']
-            );
+    $sql = " SELECT tblsslorders.remoteid,tblsslorders.configdata FROM ".
+           " mod_namecheapssl JOIN tblsslorders USING (id) WHERE tblsslorders.serviceid='" . (int)$params['serviceid'] ."'";
+    $row = NcSql::sql2row($sql);
     
-    $row = mysql_fetch_assoc($r);
     $remoteid = $row['remoteid'];
     
     $configDataString = $row['configdata'];
@@ -2596,28 +2608,15 @@ function namecheapssl_resendcert($params) {
     $_fields = namecheapssl_getModuleConfigFields();
     $_webServerTypes = namecheapssl_getWebServerTypes();
 
-    require_once dirname(__FILE__) . "/namecheapapi.php";
-
-    $testmode = isset($params['TestMode']) ? (bool) $params['TestMode'] : (bool) $params['configoption9'];
-    $debugmode = isset($params['DebugMode']) ? (bool) $params['DebugMode'] : (bool) $params['configoption21'];
-
-    if ($testmode) {
-        $username = isset($params[$_fields['SandboxUsername']]) ? $params[$_fields['SandboxUsername']] : $params['configoption3'];
-        $password = isset($params[$_fields['SandboxApiKey']]) ? $params[$_fields['SandboxApiKey']] : $params['configoption4'];
-    } else {
-        $username = isset($params[$_fields['Username']]) ? $params[$_fields['Username']] : $params['configoption1'];
-        $password = isset($params[$_fields['ApiKey']]) ? $params[$_fields['ApiKey']] : $params['configoption2'];
-    }
-
-    $result = select_query("tblsslorders", "remoteid", array("serviceid" => $params['serviceid']));
-    $data = mysql_fetch_array($result);
+    $sql = "SELECT remoteid FROM tblsslorders WHERE serviceid='" . (int)$params['serviceid'] . "'";    
+    $data = NcSql::sql2row($sql);
+    
     $certID = $data['remoteid'];
 
     try {
 
         $request_params = array('CertificateID' => $certID);
-
-        $api = new NamecheapApi($username, $password, $testmode, $debugmode);
+        $api = _namecheapssl_initApi($params);
         $response = $api->request("namecheap.ssl.resendfulfillmentemail", $request_params);
         $result = $api->parseResponse($response);
 
@@ -2638,8 +2637,9 @@ function namecheapssl_clientstartreissue($params) {
 
     global $CONFIG, $_LANG;
 
-    $params['serviceid'] = (int) $params['serviceid'];
-    $row = mysql_fetch_assoc(mysql_query("SELECT * FROM tblsslorders WHERE serviceid='{$params['serviceid']}'"));
+    
+    $sql = "SELECT * FROM tblsslorders WHERE serviceid='".(int)$params['serviceid']."'";
+    $row = NcSql::sql2row($sql);
 
 
     if (!$row) {
@@ -2657,14 +2657,15 @@ function namecheapssl_clientstartreissue($params) {
 
 
     // reissue certificate via api
-    mysql_query("UPDATE `mod_namecheapssl` SET reissue=1 WHERE certificate_id='{$row['remoteid']}'");
+    $sql = "UPDATE mod_namecheapssl SET reissue=1 WHERE certificate_id='".(int)$row['remoteid']."'";
+    NcSql::q($sql);
 
-    $status = "Incomplete";
-    if (version_compare("4.5.2", $CONFIG['Version'], "<=")) {
-        $status = "Awaiting Configuration";
-    }
-    mysql_query("UPDATE tblsslorders SET status='$status' WHERE id='{$row['id']}'");
-
+    $status = _namecheapssl_getIncompleteStatus();
+    
+    $sql = "UPDATE tblsslorders SET status='".NcSql::e($status)."' WHERE id='".(int)$row['id']."'";
+    NcSql::q($sql);
+    
+    
     $sslconfigurationlink = $CONFIG["SystemURL"] . "/configuressl.php?cert=" . md5($row['id']);
 
     namecheapssl_log('client.initReissue', 'client_init_reissue_success', array($sProviderName, $row['remoteid']), $params['serviceid']);
@@ -2695,31 +2696,16 @@ function namecheapssl_clientstartreissue($params) {
 
 function _namecheapssl_getCertificateInfo($params, $remoteid) {
 
-    $testmode = isset($params['TestMode']) ? (bool) $params['TestMode'] : (bool) $params['configoption9'];
-    $debugmode = isset($params['DebugMode']) ? (bool) $params['DebugMode'] : (bool) $params['configoption21'];
-
-    require_once dirname(__FILE__) . "/namecheapapi.php";
-    $_fields = namecheapssl_getModuleConfigFields();
-
-    if ($testmode) {
-        $username = isset($params[$_fields['SandboxUsername']]) ? $params[$_fields['SandboxUsername']] : $params['configoption3'];
-        $password = isset($params[$_fields['SandboxApiKey']]) ? $params[$_fields['SandboxApiKey']] : $params['configoption4'];
-    } else {
-        $username = isset($params[$_fields['Username']]) ? $params[$_fields['Username']] : $params['configoption1'];
-        $password = isset($params[$_fields['ApiKey']]) ? $params[$_fields['ApiKey']] : $params['configoption2'];
-    }
-
     // get certificate info
     try {
         $request_params = array('CertificateID' => $remoteid);
-
-        $api = new NamecheapApi($username, $password, $testmode, $debugmode);
+        $api = _namecheapssl_initApi($params);
         $response = $api->request("namecheap.ssl.getInfo", $request_params);
         $result = $api->parseResponse($response);
-
         return $result;
     } catch (Exception $e) {
-        return $e->getMessage();
+        return false;
+        //return $e->getMessage();
     }
 }
 
@@ -2746,19 +2732,20 @@ function namecheapssl_save_debug_info($message, $command, $isResponse = false, $
 
     if (!empty($_SESSION['adminid'])) {
         $userid = $_SESSION["adminid"];
-        $username = array_shift(mysql_fetch_array(mysql_query("SELECT username FROM tbladmins WHERE id='$userid'")));
+        $sql = "SELECT username FROM tbladmins WHERE id='$userid'";
+        $username = NcSql::sql2cell($sql);
     } else {
         $userid = $_SESSION['uid'];
         $username = 'client';
     }
 
-    $message = mysql_real_escape_string($message);
-    $command = mysql_real_escape_string($command);
-
     $debug = $isResponse ? 2 : 1;
-
-    mysql_query("INSERT INTO `mod_namecheapssl_log` SET date=NOW(), debug='$debug', action='$command', description='$message', ipaddr='{$_SERVER['REMOTE_ADDR']}', userid='$userid', user='$username', parentid='$parentid'");
-    return mysql_insert_id();
+    
+    $sql = "INSERT INTO mod_namecheapssl_log SET date=NOW(), debug='$debug', action='" . NcSql::e($command) . "', description='".  NcSql::e($message) . "', ipaddr='".NcSql::e($_SERVER['REMOTE_ADDR'])."', userid='$userid', user='$username', parentid='$parentid'";
+    NcSql::q($sql);
+    
+    
+    return NcSql::insertId();
 }
 
 function namecheapssl_log($action, $messageKey, $args = null, $serviceId = 0) {
@@ -2779,14 +2766,15 @@ function namecheapssl_log($action, $messageKey, $args = null, $serviceId = 0) {
 
     if (!empty($_SESSION['adminid'])) {
         $userid = $_SESSION["adminid"];
-        $username = array_shift(mysql_fetch_array(mysql_query("SELECT username FROM tbladmins WHERE id='$userid'")));
+        $sql = "SELECT username FROM tbladmins WHERE id='".(int)$userid."'";
+        $username = NcSql::sql2cell($sql);
     }
     if (!empty($_SESSION['uid'])) {
         $userid = $_SESSION['uid'];
         $username = 'client';
     }
 
-    $action = mysql_real_escape_string('mod.' . $action);
+    $action = 'mod.' . $action;
 
     if (is_null($args)) {
         $message = $_M[$messageKey];
@@ -2798,11 +2786,10 @@ function namecheapssl_log($action, $messageKey, $args = null, $serviceId = 0) {
         $message = vsprintf($_M[$messageKey], $args);
     }
 
-    $message = mysql_real_escape_string($message);
-
-    $query = "INSERT INTO `mod_namecheapssl_log` SET date=NOW(), debug='0', action='$action', serviceid='$serviceId', description='$message', ipaddr='{$_SERVER['REMOTE_ADDR']}', userid='$userid', user='$username'";
-    mysql_query($query);
-    return mysql_insert_id();
+    $sql = "INSERT INTO mod_namecheapssl_log SET date=NOW(), debug='0', action='".  NcSql::e($action) . "', serviceid='".  (int)$serviceId."', description='" . NcSql::e($message) . "', ipaddr='".  NcSql::e($_SERVER['REMOTE_ADDR'])."', userid='".(int)$userid."', user='".  NcSql::e($username)."'";
+    NcSql::q($sql);
+    return NcSql::insertId();
+    
 }
 
 function namecheapssl_check_install() {
@@ -2819,12 +2806,9 @@ function namecheapssl_check_install() {
     $version = $configarray['version'];
 
     // need to activate module
-    $r = mysql_query("SELECT * FROM tbladdonmodules WHERE module='namecheap_ssl' AND setting='version' AND value='{$version}'");
-    if (!mysql_num_rows($r)) {
-        return false;
-    } else {
-        return true;
-    }
+    $sql = "SELECT * FROM tbladdonmodules WHERE module='namecheap_ssl' AND setting='version' AND value='" . NcSql::e($version). "'";
+    return (bool)NcSql::sqlNumRows($sql);
+    
 }
 
 /**
@@ -2834,13 +2818,7 @@ function namecheapssl_check_install() {
  * @return NamecheapApi  private module functions
  */
 function _namecheapssl_initApi($params) {
-
-    static $api;
-    if (!empty($api)) {
-        return $api;
-    }
-
-    require_once dirname(__FILE__) . "/namecheapapi.php";
+    
 
     $_fields = namecheapssl_getModuleConfigFields();
 
@@ -2859,6 +2837,7 @@ function _namecheapssl_initApi($params) {
     $api = new NamecheapApi($username, $password, $testmode, $debugmode);
     return $api;
 }
+
 
 function _namecheapssl_getCertificateInfoFromList($params, $certificateId) {
 
@@ -2897,5 +2876,91 @@ function _namecheapssl_getCertificateInfoFromList($params, $certificateId) {
 
     return $certInfo['@attributes'];
 }
+
+
+function _namecheapssl_searchCertificateInfoInList($params, $searchParams) {
+    
+    $api = _namecheapssl_initApi($params);
+    
+    $searchResult = array();
+    
+    try {
+        $requestParams = array("Page" => 1, "PageSize" => 100);
+        
+        do {
+            $response = $api->request("namecheap.ssl.getList", $requestParams);
+            $result = $api->parseResponse($response);
+
+            if (isset($result['SSLListResult']['SSL']['@attributes'])) {
+                $result['SSLListResult']['SSL'][0] = $result['SSLListResult']['SSL'];
+            }
+
+            foreach ($result['SSLListResult']['SSL'] as $certInfo) {
+                
+                $bAddItem = true;
+                foreach($searchParams as $key=>$value){
+                    if(empty($certInfo['@attributes'][$key]) || $certInfo['@attributes'][$key]!=$value){
+                        $bAddItem = false;
+                        break;
+                    }
+                }
+                
+                if($bAddItem){
+                    $searchResult[] = $certInfo['@attributes'];
+                }
+                
+            }
+
+            $totalPages = ceil($result['Paging']['TotalItems'] / $result['Paging']['PageSize']);
+            $currentPage = $result['Paging']['CurrentPage'];
+            if ($currentPage >= $totalPages) {
+                break;
+            }
+
+            $requestParams['Page']++;
+        } while (1);
+        
+    } catch (Exception $e) {
+        return false;
+    }
+    
+    
+    return $searchResult;
+    
+}
+
+function _namecheapssl_getIncompleteStatus(){
+    
+    global $CONFIG;
+    
+    $status = 'Incomplete';  
+    if (version_compare("4.5.2", $CONFIG['Version'], "<=")) {
+        $status = "Awaiting Configuration";
+    }
+    return $status;
+    
+}
+
+
+function _namecheapssl_getLocalCertInfo($serviceId){
+    return new NcLocalCertInfo($serviceId);
+}
+
+
+function _namecheapssl_getRevokeManager($params){
+    $localCertInfo = new NcLocalCertInfo($params['serviceid']);
+    return new NcRevokeManager($localCertInfo,$params);
+}
+
+
+function _namecheapssl_replaceLangVariable($key, $value){
+    
+    global $smarty;
+    $LANG = $smarty->get_template_vars('LANG');
+    $LANG[$key] = $value;
+    $smarty->assign('LANG', $LANG);
+    
+}
+
 
 ?>
