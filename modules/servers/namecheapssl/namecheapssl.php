@@ -3,7 +3,7 @@
 // ****************************************************************************
 // *                                                                          *
 // * NameCheap.com WHMCS SSL Module                                           *
-// * Version 1.5.1a
+// * Version 1.6.1
 // * Email: sslsupport@namecheap.com                                          *
 // *                                                                          *
 // * Copyright 2010-2013 NameCheap.com                                        *
