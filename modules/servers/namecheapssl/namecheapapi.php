@@ -401,7 +401,8 @@ if (!class_exists('NcSql')){
             if(!$r){
                 return false;
             }
-            return array_shift(mysql_fetch_assoc($r));
+            $row = mysql_fetch_assoc($r);
+            return array_shift($row);
         }
         
         public static function insert($table,$array){
