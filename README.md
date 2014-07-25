@@ -14,6 +14,10 @@
 - Added fix for hook sending empty requests in case of mySQL server malfunction.
 - Minor fixes
 
+##### Updated on Jul 25, 2014 to Version 1.6.1 for WHMCS 5
+
+- Small fixes related to PHP 5.4 Strict Standards warnings.
+
 [Release Notes](https://github.com/namecheap/ssl-whmcs/wiki/Changelog)
 
 ##### Before you begin
