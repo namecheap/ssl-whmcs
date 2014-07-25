@@ -266,7 +266,8 @@ function namecheap_ssl_output($vars) {
         // query for count
         $sql = "SELECT COUNT(log.id) FROM mod_namecheapssl_log log LEFT JOIN tblclients AS c ON (log.userid=c.id AND user='client') $sqlWhere" ;        
         $r = mysql_query($sql);
-        $iCountOfLogItems =  array_shift(mysql_fetch_array($r));
+        $row = mysql_fetch_array($r);
+        $iCountOfLogItems =  array_shift($row);
         $iCountOfPages = (int)ceil($iCountOfLogItems/$iOffset);
         
         
