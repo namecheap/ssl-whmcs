@@ -4,7 +4,7 @@
 **Note:** This version is fully compatible with 5.2.x versions of WHMCS. 
 ***
 
-##### Updated on Jul 23, 2014 to Version 1.6.0 for WHMCS 5
+##### Updated on Jul 23, 2014 to Version 1.6.0 for WHMCS 5. Addon version: 1.4 
 
 - Added MySQL wrapper, improved security for DBMS work.
 - Changed RapidSSL/GeoTrust/Thawte/Symantec reissue procedure: Now, administrative information and emails cannot be edited, due to restrictions from the Certificate Authority.
