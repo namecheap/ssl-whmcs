@@ -20,6 +20,17 @@
 
 [Release Notes](https://github.com/namecheap/ssl-whmcs/wiki/Changelog)
 
+##### Addon version vs Module version
+
+Module version is the version of whole current release while "Addon version" is the version of addon file itself.
+The version specified in addon settings is version of addon file:
+
+![Add-on version](http://files.namecheap.com/images/googlecode/addonversion.jpg)
+
+In order to check the version of module please open  /modules/servers/namecheapssl/namecheapssl.php file on your server:
+
+![Module version](http://files.namecheap.com/images/googlecode/moduleversion.png)
+
 ##### Before you begin
 
 Namecheap.com SSL module for WHMCS is an open-source plugin that is distributed free of charge. This module allows you to automate SSL Certificate sales with the Namecheap platform.
@@ -144,7 +155,7 @@ All of our certificates are supported in sandbox:
 
 Installation of our SSLmodule is very simple and takes just a few minutes:
 
-1. Download and extract attached archive. It can be downloaded here: https://code.google.com/p/namecheap/downloads/list. Copy the contents to the root folder of whmcs (folder structure will remain the same).
+1. Download and extract attached archive. It can be downloaded here:  https://github.com/namecheap/ssl-whmcs/archive/master.zip. Copy the contents to the root folder of whmcs (folder structure will remain the same).
 
 2. Go to 'Setup >Addon Modules' in your WHMCS Admin area and activate the addon. Then go here:
 
