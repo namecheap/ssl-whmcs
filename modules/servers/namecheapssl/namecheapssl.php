@@ -3,7 +3,7 @@
 // ****************************************************************************
 // *                                                                          *
 // * NameCheap.com WHMCS SSL Module                                           *
-// * Version 1.6.1
+// * Version 1.6.2
 // * Email: sslsupport@namecheap.com                                          *
 // *                                                                          *
 // * Copyright 2010-2013 NameCheap.com                                        *
@@ -139,7 +139,17 @@
 // Fixed error involving inability to use multi-domain certificates without setting up configurable options.
 // Added fix for hook sending empty requests in case of mySQL server malfunction.
 // Minor fixes
-//
+// 
+// 
+// 
+// Updated on December 5, 2014 to Version 1.6.2 for WHMCS 5
+// Fixed default number of addon domains for Comodo EV Multi Domain SSL and Multi Domain SSL to 3.
+// Fixed approver email resending for GeoTrust DV certificates.
+// Fixed Organization fields for Comodo EV Multi Domain SSL.
+// Fixed issues with Job Title field: Added Job Title to Module Settings and made it required field for Thawte, Symantec and EV GeoTrust certificates.
+// Added 15 seconds timeout was implemented for uploading certificate types.
+// Added “SourceOfCall” parameter to API calls to Namecheap.
+// 
 //
 
 
@@ -167,7 +177,8 @@ function namecheapssl_getModuleConfigFields() {
         "TechCountry" => "Tech Country",
         "TechPostalCode" => "Tech Postal Code",
         "TechPhone" => "Tech Phone",
-        "TechOrganizationName" => "Tech Organization Name"
+        "TechOrganizationName" => "Tech Organization Name",
+        "TechJobTitle" => "Tech Job Title"
     );
     return $_fields;
 }
@@ -253,6 +264,7 @@ function namecheapssl_getSslTypes($returnAdvanced = false) {
     curl_setopt($ch, CURLOPT_HEADER, 0);
     curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
     curl_setopt($ch, CURLOPT_FOLLOWLOCATION, 1);
+    curl_setopt($ch, CURLOPT_TIMEOUT, 15);
     $respXML = curl_exec($ch);
     $curl_error = curl_error($ch);
     curl_close($ch);
@@ -342,6 +354,10 @@ function _namecheapssl_getDefaultSunCount($type){
     
     $map = 
     array(
+        
+            'EV Multi Domain SSL' => 3,
+            'Multi Domain SSL' => 3,
+        
             'ComodoSSL Multi Domain SSL' => 3,
             'PositiveSSL Multi Domain' => 3,
             'Unified Communications' => 3,
@@ -506,6 +522,11 @@ $(document).ready(function() {
         $_fields['DebugMode'] => array(
             'Type' => 'yesno'
         ),
+        $_fields['TechJobTitle'] => array(
+            'Type' => 'text',
+            'Size' => 20,
+            'Description' => ''
+        )
     );
 
     return $configarray;
@@ -641,7 +662,7 @@ function namecheapssl_SSLStepOne($params) {
         //$certInfo = _namecheapssl_getCertificateInfo($params,$certificateId);
     }
     
-    
+        
     $localCertInfo = _namecheapssl_getLocalCertInfo($params['serviceid']);
     
     if(!$localCertInfo->loadServerTypes()){
@@ -730,7 +751,8 @@ function namecheapssl_SSLStepOne($params) {
     // 1. CallBack Parameters for activating Comodo OV Certificates (InstantSSL, InstantSSL Pro, PremiumSSL, PremiumSSL Wildcard):
     if (
         !('COMODO'!=$provider && $localCertInfo->inReissueState()) &&
-        in_array( $localCertInfo->getType() , array('InstantSSL', 'PremiumSSL', 'InstantSSL Pro', 'PremiumSSL Wildcard', 'Unified Communications'))) {
+        in_array( $localCertInfo->getType() , 
+                array('InstantSSL', 'PremiumSSL', 'InstantSSL Pro', 'PremiumSSL Wildcard', 'Unified Communications', 'Multi Domain SSL'))) {
 
         $values['additionalfields'][$_LANG['ncssl_comodo_add_form_title']] = array(
             "OrganizationRepFirstName" => array(
@@ -856,7 +878,7 @@ function namecheapssl_SSLStepOne($params) {
     // 2. Additional Parameters for activating Comodo EV Certificates (Comodo EV SSL, Comodo EV SGC SSL)
     if (  
             !('COMODO'!=$provider && $localCertInfo->inReissueState()) && 
-            in_array( $localCertInfo->getType() , array('EV SSL', 'EV SSL SGC'))) {
+            in_array( $localCertInfo->getType() , array('EV SSL', 'EV SSL SGC', 'EV Multi Domain SSL'))) {
         $values['additionalfields'][$_LANG['ncssl_comodo_ev_add_form_title']] = array(
             "CompanyIncorporationCountry" => array(
                 "FriendlyName" => $_LANG['ncssl_comodo_ev_add_CompanyIncorporationCountry'],
@@ -1007,6 +1029,14 @@ function namecheapssl_SSLStepTwo($params) {
     }
     $provider = $localCertInfo->getProvider();
     
+    
+    if((
+            NcLocalCertInfo::CERTIFICATE_VALIDATION_TYPE_EV == $localCertInfo->getValidationType() ||
+            NcLocalCertInfo::PROVIDER_THAWTE == $provider ||
+            NcLocalCertInfo::PROVIDER_VERISIGN == $provider
+            ) && empty($params['jobtitle']) ){
+        return array( 'error' => $_LANG['ncsssl_jobtitle_required_for_symantec']);
+    }
     
     // 
     // check san
@@ -1314,7 +1344,7 @@ function namecheapssl_SSLStepThree($params) {
         }
     }
 
-    // load information from db
+    // load information from db. todo: remove this queries, use locaCertInfo only
     $sql = "SELECT * FROM tblsslorders WHERE serviceid = '" . (int) $params['serviceid'] . "'";
     $sslOrderInfo = NcSql::sql2row($sql);
     
@@ -1322,26 +1352,20 @@ function namecheapssl_SSLStepThree($params) {
     $sslOrderCustomInfo = NcSql::sql2row($sql);
 
 
-    // added 21 dec 2011
-    $jobRequereCertList = array("PremiumSSL", "InstantSSL", "True BusinessID with EV",
-        "True BusinessID", "True BusinessID Wildcard", "Secure Site", "Secure Site Pro",
-        "Secure Site with EV", "Secure Site Pro with EV", "InstantSSL Pro", "Premiumssl wildcard",
-        "EV SSL", "EV SSL SGC", "SSL Web Server", "SGC Super Certs", "SSL Webserver EV",
-        "SSL Web Server", "SGC Super Certs", "SSL WebServer EV", "SSL123" // thawte
-    );
-    foreach ($jobRequereCertList as $k => $v)
-        $jobRequereCertList[$k] = strtolower($v);
-
-    if (in_array(strtolower($sslOrderInfo['certtype']), $jobRequereCertList)) {
-        if (empty($requestParams['AdminJobTitle']))
-            $requestParams['AdminJobTitle'] = 'n/a';
-        if (empty($requestParams['TechJobTitle']))
-            $requestParams['TechJobTitle'] = 'n/a';
-        if (empty($requestParams['BillingJobTitle']))
-            $requestParams['BillingJobTitle'] = 'n/a';
+    
+    $localCertInfo = _namecheapssl_getLocalCertInfo($params['serviceid']);
+    if(!$localCertInfo->loadServerTypes()){
+        return array( 'error' => $_LANG['ncssl_unable_retrieve_certtypes'] . ' ' . $_LANG['ncssl_try_again_in_several_minutes'] );
     }
-    // end added 21 dec 2011
-    // 
+    
+    
+    if(NcLocalCertInfo::CERTIFICATE_VALIDATION_TYPE_EV==$localCertInfo->getValidationType()){
+        if(!empty($params['configoption22'])){
+            $requestParams['TechJobTitle'] = $requestParams['BillingJobTitle'] = $params['configoption22'];
+        }else{
+            $requestParams['TechJobTitle'] = $requestParams['BillingJobTitle'] = 'NA';
+        }
+    }
     
     
     
@@ -1388,20 +1412,25 @@ function namecheapssl_SSLStepThree($params) {
         }
         
         if($sanQuickSslPremium){
-            $currentAdditionalSansCount = 4;
+            $currentAdditionalSansCount = 0;
         }else{
             
             if(!empty($params['configoptions']['san'])){
-                $currentAdditionalSansCount = intval($params['configoptions']['san']);
-            }else{
                 $currentAdditionalSansCount = count($sans);
+                
+                $currentAdditionalSansCount -= _namecheapssl_getDefaultSunCount($sslOrderCustomInfo['type']);
+                if($currentAdditionalSansCount<0){
+                    $currentAdditionalSansCount=0;
+                }
+                
+            }else{
+                $currentAdditionalSansCount = 0;
             }
             
         }
         
+        
     }
-    
-    
     
     // 
     // additional params
@@ -2338,9 +2367,10 @@ function namecheapssl_resendapprove($params) {
     
     
     $type = $data['certtype'];
-    $noResendTypes = array("RapidSSL",
+    $noResendTypes = array(
+        //"RapidSSL",
         "QuickSSL",
-        "QuickSSL Premium",
+        //"QuickSSL Premium",
         "True BusinessID",
         "True BusinessID with EV",
         "True BusinessID Wildcard",

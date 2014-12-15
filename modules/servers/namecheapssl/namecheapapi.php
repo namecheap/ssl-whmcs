@@ -224,9 +224,9 @@ class NamecheapApi
         }
 
         if (!$isPost) {
-            return ($this->_testMode ? self::$testUrl : self::$url) . '?' . http_build_query($this->_getApiParams($command, $params),'','&');
+            return ($this->_testMode ? self::$testUrl : self::$url) . '?' . 'SourceOfCall=WHMCS&' . http_build_query($this->_getApiParams($command, $params),'','&');
         } else {
-            return ($this->_testMode ? self::$testUrl : self::$url);
+            return ($this->_testMode ? self::$testUrl : self::$url) . '?SourceOfCall=WHMCS';
         }
     }
 
@@ -241,7 +241,6 @@ class NamecheapApi
         $params['Command'] = $command;
         $params['ApiUser'] = $this->_apiUser;
         $params['ApiKey']  = $this->_apiKey;
-        $params['SourceOfCall'] = 'WHMCS';
 
         if (!array_key_exists('UserName', $params) || !strlen($params['UserName'])) {
             $params['UserName'] = $params['ApiUser'];
@@ -587,6 +586,17 @@ if (!class_exists('NcLocalCertInfo')){
         
         const EXCEPTION_SSL_LIST_IS_EMPTY = 'SSL types list is empty';
         
+        const CERTIFICATE_VALIDATION_TYPE_EV = 'ev';
+        const CERTIFICATE_VALIDATION_TYPE_OV = 'ov';
+        const CERTIFICATE_VALIDATION_TYPE_DOMAIN = 'domain';
+        
+        
+        const PROVIDER_COMODO = 'COMODO';
+        const PROVIDER_GEOTRUST = 'GEOTRUST';
+        const PROVIDER_VERISIGN = 'VERISIGN';
+        const PROVIDER_THAWTE = 'THAWTE';
+        
+        
         protected $_nativeRow;
         protected $_customRow;
         
@@ -666,6 +676,26 @@ if (!class_exists('NcLocalCertInfo')){
             
         }
         
+        
+        public function getValidationType(){
+            if(empty(self::$_namecheapSSLTypesAdvanced)){
+                throw new NamecheapApiException(self::EXCEPTION_SSL_LIST_IS_EMPTY);
+            }
+            
+            foreach(self::$_namecheapSSLTypesAdvanced as $info){
+                if( strtolower($info['Type']) == strtolower($this->_nativeRow['certtype']) ){
+                    $type = strtolower($info['ValidationType']);
+                    if('org'===  substr($type, 0,3)){
+                        return self::CERTIFICATE_VALIDATION_TYPE_OV;
+                    }
+                    if('ext'===  substr($type, 0,3)){
+                        return self::CERTIFICATE_VALIDATION_TYPE_EV;
+                    }
+                    return self::CERTIFICATE_VALIDATION_TYPE_DOMAIN;
+                }
+            }
+        }
+
         
         public function backupConfigData(){
             if(empty($this->_customRow['configdata_copy'])){

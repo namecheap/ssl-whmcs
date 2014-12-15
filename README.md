@@ -4,6 +4,22 @@
 **Note:** This version is fully compatible with 5.2.x versions of WHMCS. 
 ***
 
+##### Updated on December 15, 2014 to Version 1.6.2 for WHMCS 5.
+**Important information:** Previous versions of WHMCS SSL Module contained a bug that could potentially affect clients that resell Multi-domain SSL certificates using WHMCS module. Please check details of the bug and how it might have affected you in the following [knowledgebase article](https://www.namecheap.com/support/knowledgebase/article.aspx/9444/2196/whmcs-ssl-module-bug). 
+
+This bug has been fixed in version 1.6.2
+
+Other changes:
+
+- Fixed default number of addon domains for Comodo EV Multi Domain SSL and Multi Domain SSL to 3.
+- Fixed approver email resending for GeoTrust DV certificates
+- Fixed Organization fields for Comodo EV Multi Domain SSL.
+- Fixed issues with Job Title field: Added Job Title to Module Settings and made it required field for Thawte, Symantec and EV GeoTrust certificates.
+- Added 15 seconds timeout was implemented for uploading certificate types.
+- Added “SourceOfCall” parameter to API calls to Namecheap.
+
+
+
 ##### Updated on Jul 23, 2014 to Version 1.6.0 for WHMCS 5. Addon version: 1.4 
 
 - Added MySQL wrapper, improved security for DBMS work.
