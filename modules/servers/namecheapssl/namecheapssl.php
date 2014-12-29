@@ -3,7 +3,7 @@
 // ****************************************************************************
 // *                                                                          *
 // * NameCheap.com WHMCS SSL Module                                           *
-// * Version 1.6.2
+// * Version 1.6.3
 // * Email: sslsupport@namecheap.com                                          *
 // *                                                                          *
 // * Copyright 2010-2013 NameCheap.com                                        *
@@ -141,7 +141,6 @@
 // Minor fixes
 // 
 // 
-// 
 // Updated on December 5, 2014 to Version 1.6.2 for WHMCS 5
 // Fixed default number of addon domains for Comodo EV Multi Domain SSL and Multi Domain SSL to 3.
 // Fixed approver email resending for GeoTrust DV certificates.
@@ -150,7 +149,10 @@
 // Added 15 seconds timeout was implemented for uploading certificate types.
 // Added “SourceOfCall” parameter to API calls to Namecheap.
 // 
-//
+// 
+// Updated on December 19, 2014 to Version 1.6.3 for WHMCS 5
+// Fixed bug with Job Title field for Thawte and Symantec certificates
+//    
 
 
 require_once dirname(__FILE__) . "/namecheapapi.php";
@@ -1359,7 +1361,10 @@ function namecheapssl_SSLStepThree($params) {
     }
     
     
-    if(NcLocalCertInfo::CERTIFICATE_VALIDATION_TYPE_EV==$localCertInfo->getValidationType()){
+    $provider = $localCertInfo->getProvider();
+    if(NcLocalCertInfo::CERTIFICATE_VALIDATION_TYPE_EV==$localCertInfo->getValidationType() ||
+            NcLocalCertInfo::PROVIDER_THAWTE == $provider ||
+            NcLocalCertInfo::PROVIDER_VERISIGN == $provider){
         if(!empty($params['configoption22'])){
             $requestParams['TechJobTitle'] = $requestParams['BillingJobTitle'] = $params['configoption22'];
         }else{
