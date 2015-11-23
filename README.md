@@ -4,7 +4,7 @@
 **Note:** This version is fully compatible with 5.2.x versions of WHMCS. 
 ***
 
-##### Updated on November, 23 2014 to Version 1.6.4 for WHMCS 5.x
+##### Updated on November, 23 2015 to Version 1.6.4 for WHMCS 5.x
 **Important information:** Previous versions of WHMCS SSL Module contained a bug that could potentially affect clients that resell Multi-domain SSL certificates using WHMCS module. Please check details of the bug and how it might have affected you in the following [knowledgebase article](https://www.namecheap.com/support/knowledgebase/article.aspx/9444/2196/whmcs-ssl-module-bug). 
 This bug was fixed in version 1.6.2
 
