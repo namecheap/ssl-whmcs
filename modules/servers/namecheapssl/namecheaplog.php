@@ -13,6 +13,7 @@
     $_M['admin_sync_updated_remoteid'] = 'Remote id updated from admin area. Old id:%s, current id:%s';
     
     $_M['addon_updated_remoteid'] = 'Remote id updated from addon. Old id:%s, current id:%s';
+    $_M['addon_updated_settings'] = 'Settings updated from addon';
     
     $_M['admin_resend_configuration_email'] = 'Admin sent configuration email';    
     
