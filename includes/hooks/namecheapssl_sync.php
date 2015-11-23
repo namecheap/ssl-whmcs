@@ -38,6 +38,9 @@
         namecheapssl_log('hook.sync', 'sync_hook_started', $user);
         
         
+        $sync_date_offset = NcSql::sql2cell("SELECT value FROM mod_namecheapssl_settings WHERE name='sync_date_offset'");
+        
+        
         $api = new NamecheapApi($user, $password, $debugMode);
         
         $iPageSize = 22;
@@ -82,13 +85,19 @@
                     $res = Namecheapssl_hook_sync_mysql_query("SELECT h.id FROM `tblhosting` h INNER JOIN `tblsslorders` s ON s.serviceid=h.id  WHERE s.remoteid='{$aCertInfo['@attributes']['CertificateID']}' AND h.`nextduedate` != '$year-$month-$day'");
                     
                     if (mysql_num_rows($res)){
-                        $iHostingId = array_shift(mysql_fetch_array($res));                        
+                        $iHostingId = array_shift(mysql_fetch_array($res));
+                        
+                        $duedate = "$year-$month-$day";
+                        if($sync_date_offset){
+                             $duedate = date('Y-m-d',strtotime($duedate . "-$sync_date_offset days"));
+                        }
+                        
                         $sql = "update `tblhosting`
-                                   set `nextduedate` = '$year-$month-$day',
-                                       `nextinvoicedate` = '$year-$month-$day'
+                                   set `nextduedate` = '$duedate',
+                                       `nextinvoicedate` = '$duedate'
                                  where `id` = '$iHostingId'";                        
                         Namecheapssl_hook_sync_mysql_query($sql);
-                        namecheapssl_log('hook.sync', 'sync_hook_updated_duedate', array("$year-$month-$day"),$iHostingId);
+                        namecheapssl_log('hook.sync', 'sync_hook_updated_duedate', array("$duedate"),$iHostingId);
                     }
                     
                     // sync domain
