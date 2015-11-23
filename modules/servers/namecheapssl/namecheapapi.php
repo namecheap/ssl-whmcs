@@ -383,7 +383,7 @@ if (!class_exists('NcSql')){
         }
         
         public static function sql2set_keyval($sql){
-            $data = self::sql2array($sql);
+            $data = self::sql2set($sql);
             $set = array();
             if(!empty($data)){
                 
@@ -619,6 +619,10 @@ if (!class_exists('NcLocalCertInfo')){
         
         public function inReissueState(){
             return (bool)$this->_customRow['reissue'];
+        }
+        
+        public function hasFileName(){
+            return !empty($this->_customRow['file_name']);
         }
         
         public function getConfigData($backuped=false){
