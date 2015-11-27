@@ -1,13 +1,10 @@
 ## Namecheap.com WHMCS SSL Module
 
 *** 
-**Note:** This version is fully compatible with 5.2.x versions of WHMCS. 
+**Note:** This version is fully compatible with 6.1.x versions of WHMCS. 
 ***
 
-##### Updated on November, 23 2015 to Version 1.6.4 for WHMCS 5.x
-**Important information:** Previous versions of WHMCS SSL Module contained a bug that could potentially affect clients that resell Multi-domain SSL certificates using WHMCS module. Please check details of the bug and how it might have affected you in the following [knowledgebase article](https://www.namecheap.com/support/knowledgebase/article.aspx/9444/2196/whmcs-ssl-module-bug). 
-This bug was fixed in version 1.6.2
-
+##### Updated on November, 27 2015 to Version 1.6.4 for WHMCS 6.x
 Changes in 1.6.4:
 
 -  Removed email and HTTP validation for Symantec OV and EV certificates
@@ -27,8 +24,6 @@ Other changes:
 - Fixed issues with Job Title field: Added Job Title to Module Settings and made it required field for Thawte, Symantec and EV GeoTrust certificates.
 - Added 15 seconds timeout was implemented for uploading certificate types.
 - Added “SourceOfCall” parameter to API calls to Namecheap.
-
-
 
 ##### Updated on Jul 23, 2014 to Version 1.6.0 for WHMCS 5. Addon version: 1.4 
 
