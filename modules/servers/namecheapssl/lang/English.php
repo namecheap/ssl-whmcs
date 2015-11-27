@@ -101,6 +101,8 @@ $_MOD_LANG['ncssl_admin_viewdetails_sans'] = 'Additional Domains';
 $_MOD_LANG['ncssl_addon_menu_log'] = 'Log';
 $_MOD_LANG['ncssl_addon_menu_sync'] = 'Link/Re-Link WHMCS Cert ID to NC Cert ID';
 $_MOD_LANG['ncssl_addon_menu_list'] = 'Certificate list';
+$_MOD_LANG['ncssl_addon_menu_settings'] = 'Settings';
+
 
 $_MOD_LANG['ncssl_addon_list_user_list'] = 'User list';
 $_MOD_LANG['ncssl_addon_list_certificate_id'] = 'Certificate ID';
@@ -148,6 +150,13 @@ $_MOD_LANG['ncssl_addon_log_username'] = 'Username';
 $_MOD_LANG['ncssl_addon_log_ipaddress'] = 'IP Address';
 $_MOD_LANG['ncssl_addon_sun_reduction_notice'] = 'Decreasing number of addon domains is not allowed. Please go back.';
 
+
+$_MOD_LANG['ncssl_addon_setting_ssync_date_offset_1'] = 'Product due date sync offset';
+$_MOD_LANG['ncssl_addon_setting_ssync_date_offset_2'] = 'days before the actual expiration date';
+
+$_MOD_LANG['ncssl_addon_changes_saved_success'] = 'Changes Saved Successfully!';
+
+
 $_MOD_LANG['ncssl_http_based_validation'] = "HTTP based validation";
 $_MOD_LANG['ncssl_show_validation_file_contents'] = 'Show validation file contents';
 $_MOD_LANG['ncssl_custom_phrase_sslconfigcompletedetails'] = 'Please create<br /><br />%filename%<br /><br />with contents<br /><br />%contents%<br /><br />and put it into the root directory of your domain. It may take some time for file to be automatically validated and cert to be issued by Certificate Authority';
@@ -188,3 +197,8 @@ $_MOD_LANG['ncssl_error_revoke_4'] = 'Revocation of multiple instances of reissu
 $_MOD_LANG['ncssl_back_to_service'] = '&laquo; Back to the service';
 
 $_MOD_LANG['ncsssl_jobtitle_required_for_symantec'] = 'Job Title is required for Symantec EV certificates';
+
+
+$_MOD_LANG['ncssl_symantec_approver_email_notice'] = 'Approval email is not required for this type of certificate';
+
+
