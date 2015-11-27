@@ -4,14 +4,15 @@
 **Note:** This version is fully compatible with 5.2.x versions of WHMCS. 
 ***
 
-##### Updated on December 24, 2014 to Version 1.6.3 for WHMCS 5.x
+##### Updated on November, 23 2015 to Version 1.6.4 for WHMCS 5.x
 **Important information:** Previous versions of WHMCS SSL Module contained a bug that could potentially affect clients that resell Multi-domain SSL certificates using WHMCS module. Please check details of the bug and how it might have affected you in the following [knowledgebase article](https://www.namecheap.com/support/knowledgebase/article.aspx/9444/2196/whmcs-ssl-module-bug). 
 This bug was fixed in version 1.6.2
 
-Changes in 1.6.3:
+Changes in 1.6.4:
 
-- Fixed a bug with Job Title field for Thawte and Symantec certificates
-- Fixed a typo in the lang file
+-  Removed email and HTTP validation for Symantec OV and EV certificates
+- Added product due date synchronization offset in settings section of addon
+- Simplified domain validation choice for Symantec DV certificates reissue
 
 ##### Updated on December 15, 2014 to Version 1.6.2 for WHMCS 5.
 **Important information:** Previous versions of WHMCS SSL Module contained a bug that could potentially affect clients that resell Multi-domain SSL certificates using WHMCS module. Please check details of the bug and how it might have affected you in the following [knowledgebase article](https://www.namecheap.com/support/knowledgebase/article.aspx/9444/2196/whmcs-ssl-module-bug). 
