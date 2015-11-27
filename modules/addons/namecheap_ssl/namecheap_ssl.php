@@ -3,10 +3,10 @@
 // ****************************************************************************
 // *                                                                          *
 // * NameCheap.com WHMCS SSL Module Addon                                     *
-// * Version 1.4
+// * Version 1.41
 // * Email: sslsupport@namecheap.com                                          *
 // *                                                                          *
-// * Copyright 2010-2014 NameCheap.com                                        *
+// * Copyright 2010-2015 NameCheap.com                                        *
 // *                                                                          *
 // ****************************************************************************
 
@@ -28,7 +28,7 @@ function namecheap_ssl_config() {
     $configarray = array(
     "name" => "Namecheap SSL Module Addon",
     "description" => "This addon performs several important operations related to Namecheap SSL Module. 1) It performs necessary installation/update procedures during Namecheap SSL Module installation/update. 2) It logs details of all SSL certificate reissues. 3) It performs full logging of all API calls for the products with activated \"debug mode\" option.",
-    "version" => "1.4",
+    "version" => "1.41",
     "author" => "Namecheap",
     "language" => "english",
     "fields" => array(
@@ -154,6 +154,18 @@ function namecheap_ssl_check_upgrades(){
     if (0==mysql_num_rows($r)){
         mysql_query("ALTER TABLE `mod_namecheapssl` ADD COLUMN `configdata_copy` TEXT NULL DEFAULT NULL AFTER `file_content`");
         mysql_query("ALTER TABLE `mod_namecheapssl` ADD COLUMN `revoke_data` TEXT NULL DEFAULT NULL AFTER `configdata_copy`;");
+    }
+    
+    
+    // v 1.41
+    // 
+    $r = mysql_query("SHOW TABLES LIKE 'mod_namecheapssl_settings'");
+    if (0==mysql_num_rows($r)){
+        mysql_query("CREATE TABLE `mod_namecheapssl_settings` (
+                `name` VARCHAR(50) NOT NULL,
+                `value` VARCHAR(255) NOT NULL
+        )
+        ENGINE=MyISAM");
     }
     
     
@@ -464,6 +476,49 @@ function namecheap_ssl_output($vars) {
             
         }
         
+    }
+    else if ('settings'==$action)
+    {
+        
+        // message
+        $view['message'] = '';
+        if(!empty($_REQUEST['message']) && 'updated' == $_REQUEST['message']){
+            $view['message'] = $_LANG['ncssl_addon_changes_saved_success'];
+        }
+        
+        // prepare information for view
+        $view['settings'] = NcSql::sql2set_keyval("SELECT name,value FROM mod_namecheapssl_settings");
+        
+        
+        $view['control_options'] = array(
+            'sync_date_offset' => array(
+                    0 => '0',
+                    5 => '5',
+                    15 => '15',
+                    30 => '30'
+                )
+        );
+        
+        // process incoming data
+        if(isset($_REQUEST['settings'])){
+            
+            foreach($_REQUEST['settings'] as $name=>$value){
+                NcSql::q(sprintf("DELETE FROM mod_namecheapssl_settings WHERE name='%s'",  NcSql::e($name)));
+                NcSql::q(sprintf("INSERT INTO mod_namecheapssl_settings SET name='%s', value='%s'",  NcSql::e($name),NcSql::e($value)));
+            }
+            
+            // redirect
+            $query_string = '?module=namecheap_ssl&action=settings&message=updated';
+            
+            namecheapssl_log('addon.settings', 'addon_updated_settings');
+            
+
+            header('Location: ' . $query_string);
+            exit();
+            
+            
+        }
+       
     }
     else
     {
