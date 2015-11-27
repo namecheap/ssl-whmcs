@@ -3,7 +3,7 @@
 // ****************************************************************************
 // *                                                                          *
 // * NameCheap.com WHMCS SSL Module                                           *
-// * Version 1.6.3
+// * Version 1.6.4
 // * Email: sslsupport@namecheap.com                                          *
 // *                                                                          *
 // * Copyright 2010-2013 NameCheap.com                                        *
@@ -19,7 +19,7 @@
 // * 2. The module /modules/admin/namecheapssl/ is deprecated and should be removed. Its functionality was moved to the addon.
 // * For those upgrading between 1.3.x versions:
 // * 1. Download and unzip attached archive. Copy the contents to the root folder of whmcs (folder structure will remain the same).
-// * 2. Go to ‘Addons > NamecheapSSL Module addon’ in admin area or go to http://yourdomain.com/admin/addonmodules.php?module=namecheapssl (given you have WHMCS installed onhttp://yourdomain.com/). The SSL Module Addon will take care of the update automatically.
+// * 2. Go to ‘Addons > NamecheapSSL Module addon’ in admin area or go to http://yourdomain.com/admin/addonmodules.php?module=namecheapssl (given you have WHMCS installed on http://yourdomain.com/). The SSL Module Addon will take care of the update automatically.
 // ****************************************************************************
 // *************                  -- Change log --                *************
 // * Updated on Jan 21, 2011                                                  *
@@ -152,7 +152,14 @@
 // 
 // Updated on December 19, 2014 to Version 1.6.3 for WHMCS 5
 // Fixed bug with Job Title field for Thawte and Symantec certificates
-//    
+//
+// 
+// Updated on November 23, 2015 to version 1.6.4
+// Removed email and HTTP validation for Symantec OV and EV certificates
+// Added product due date synchronization offset in settings section of addon
+// Simplified domain validation choice for Symantec DV certificates reissue
+//
+//
 
 
 require_once dirname(__FILE__) . "/namecheapapi.php";
@@ -1205,10 +1212,32 @@ function namecheapssl_SSLStepTwo($params) {
         $backupedConfigData = $localCertInfo->getConfigData(true);
         
         
+        if(empty($backupedConfigData['approveremail'])){
+            
+            if($localCertInfo->hasFileName()){
+                $backupedConfigData['approveremail'] = $_LANG['ncssl_http_based_validation'];
+            }else{
+                
+                try{
+                    $api = _namecheapssl_initApi($params);
+                    $response = $api->request("namecheap.ssl.getInfo", array('CertificateID' => (int) $localCertInfo->getRemoteId() ));
+                    $result = $api->parseResponse($response);               
+                    $backupedConfigData['approveremail'] = $result['SSLGetInfoResult']['CertificateDetails']['ApproverEmail'];
+                    
+                } catch (Exception $e) {
+                    return array('error' => $e->getMessage());
+                }
+                
+            }
+            
+        }
+        
+        $values['approveremails'] = array($backupedConfigData['approveremail']);
+        
         $script  = '<script>';
         $script .= "$(document).ready(function(){";
         
-        $script .= "$('[value=\"".addslashes($backupedConfigData['approveremail'])."\"]').prop('checked',true)\n";
+        //$script .= "$('[value=\"".addslashes($backupedConfigData['approveremail'])."\"]').prop('checked',true)\n";
         $script .= "$('[name=approveremail]').prop('disabled',true)\n";
         $script .= "$('[name=approveremail]:last').after($('<input type=hidden name=approveremail value=\"" . addslashes($backupedConfigData['approveremail']) . "\" >'))\n";
         
@@ -1223,14 +1252,38 @@ function namecheapssl_SSLStepTwo($params) {
     
     namecheapssl_log('client.stepTwo', 'client_step_two', array($certType, $domain), $params['serviceid']);
     
+    
+    // hide approver emails for ov/ev symantec certificates
+    if( (NcLocalCertInfo::CERTIFICATE_VALIDATION_TYPE_EV == $localCertInfo->getValidationType() || NcLocalCertInfo::CERTIFICATE_VALIDATION_TYPE_OV == $localCertInfo->getValidationType()) && NcLocalCertInfo::PROVIDER_COMODO!=$provider){
+        $script  = '<script>';
+        $script .= "$(document).ready(function(){";
+        $script .= "$('[name=approveremail]').hide()\n";
+        $script .= "})";
+        $script .= '</script>';
+        _namecheapssl_replaceLangVariable('sslcertapproveremaildetails',  $script);
+        $values['approveremails'] = array($_LANG['ncssl_symantec_approver_email_notice']);
+    }
+    
+    
     return $values;
+    
 }
 
 function namecheapssl_SSLStepThree($params) {
     
     
+    global $CONFIG, $_LANG;
+    namecheapssl_initlang();
     
-    $useHttpBasedValidation = (false === strpos($params['approveremail'], '@'));
+    
+    $localCertInfo = _namecheapssl_getLocalCertInfo($params['serviceid']);
+    if(!$localCertInfo->loadServerTypes()){
+        return array( 'error' => $_LANG['ncssl_unable_retrieve_certtypes'] . ' ' . $_LANG['ncssl_try_again_in_several_minutes'] );
+    }
+    
+    
+    $useHttpBasedValidation = (false === strpos($params['approveremail'], '@')) && $_LANG['ncssl_symantec_approver_email_notice']!=$params['approveremail'];
+    
     
     // added 20/02/2012 - whmcs 4.4.2 compatibility
     if (empty($params['configdata']) && !empty($_SESSION['namecheapssl'])) {
@@ -1246,8 +1299,6 @@ function namecheapssl_SSLStepThree($params) {
         $reissueProcess = true;
     }
 
-    global $CONFIG, $_LANG;
-    namecheapssl_initlang();
 
     $_fields = namecheapssl_getModuleConfigFields();
     $_webServerTypes = namecheapssl_getWebServerTypes();
@@ -1275,6 +1326,12 @@ function namecheapssl_SSLStepThree($params) {
     if ($useHttpBasedValidation) {
         $requestParams['HttpDCValidation'] = 'true';
         unset($requestParams['ApproverEmail']);
+    }
+    
+    
+    // remove dcv or email validation
+    if( (NcLocalCertInfo::CERTIFICATE_VALIDATION_TYPE_EV == $localCertInfo->getValidationType() || NcLocalCertInfo::CERTIFICATE_VALIDATION_TYPE_OV == $localCertInfo->getValidationType()) && NcLocalCertInfo::PROVIDER_COMODO!=$provider){
+        unset($requestParams['ApproverEmail'],$requestParams['HttpDCValidation']);
     }
     
     
@@ -1353,12 +1410,6 @@ function namecheapssl_SSLStepThree($params) {
     $sql = "SELECT * FROM mod_namecheapssl WHERE id = '" . (int)$sslOrderInfo['id'] . "'";
     $sslOrderCustomInfo = NcSql::sql2row($sql);
 
-
-    
-    $localCertInfo = _namecheapssl_getLocalCertInfo($params['serviceid']);
-    if(!$localCertInfo->loadServerTypes()){
-        return array( 'error' => $_LANG['ncssl_unable_retrieve_certtypes'] . ' ' . $_LANG['ncssl_try_again_in_several_minutes'] );
-    }
     
     
     $provider = $localCertInfo->getProvider();
@@ -1872,7 +1923,7 @@ function namecheapssl_cancel($params) {
 
 function namecheapssl_resend($params) {
     global $CONFIG, $_LANG;
-
+    
     $sql = "SELECT id FROM tblsslorders WHERE serviceid='" . (int)$params['serviceid'] . "'";
     $data = NcSql::sql2row($sql);
     
@@ -1992,8 +2043,16 @@ function namecheapssl_sync($params) {
         // sync expire date
         $expireDate = $result['SSLGetInfoResult']['@attributes']['Expires'];
         if (!empty($expireDate)) {
+            
             list($month, $day, $year) = explode("/", $expireDate);
+            
             $duedate = "$year-$month-$day";
+            
+            // correct due date using offset
+            $sync_date_offset = NcSql::sql2cell("SELECT value FROM mod_namecheapssl_settings WHERE name='sync_date_offset'");
+            if($sync_date_offset){
+                $duedate = date('Y-m-d',strtotime($duedate . "-$sync_date_offset days"));
+            }
             
             $sql = "UPDATE tblhosting SET nextduedate = '".  NcSql::e($duedate)."', nextinvoicedate = '".  NcSql::e($duedate)."' WHERE id = '" . (int) $params['serviceid'] . "'";
             NcSql::q($sql);
