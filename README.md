@@ -3,9 +3,13 @@
 *** 
 **Note:** This version is fully compatible with 6.1.x versions of WHMCS. 
 ***
+##### Updated on March 28, 2016 to version 1.6.5 for WHMCS 6.x
+
+- Fixed bug with approver emails for Symantec OV and EV certificates
+- Added notification about latin characters to the first certificate activation page
+- Job/Title set as an obligatory field for Symantec certificates
 
 ##### Updated on November, 27 2015 to Version 1.6.4 for WHMCS 6.x
-Changes in 1.6.4:
 
 -  Removed email and HTTP validation for Symantec OV and EV certificates
 - Added product due date synchronization offset in settings section of addon
@@ -24,20 +28,6 @@ Other changes:
 - Fixed issues with Job Title field: Added Job Title to Module Settings and made it required field for Thawte, Symantec and EV GeoTrust certificates.
 - Added 15 seconds timeout was implemented for uploading certificate types.
 - Added “SourceOfCall” parameter to API calls to Namecheap.
-
-##### Updated on Jul 23, 2014 to Version 1.6.0 for WHMCS 5. Addon version: 1.4 
-
-- Added MySQL wrapper, improved security for DBMS work.
-- Changed RapidSSL/GeoTrust/Thawte/Symantec reissue procedure: Now, administrative information and emails cannot be edited, due to restrictions from the Certificate Authority.
-- Added revocation functionality.
-- Performed partial code refactoring.
-- Fixed error involving inability to use multi-domain certificates without setting up configurable options.
-- Added fix for hook sending empty requests in case of mySQL server malfunction.
-- Minor fixes
-
-##### Updated on Jul 25, 2014 to Version 1.6.1 for WHMCS 5
-
-- Small fixes related to PHP 5.4 Strict Standards warnings.
 
 [Release Notes](https://github.com/namecheap/ssl-whmcs/wiki/Changelog)
 
