@@ -196,9 +196,10 @@ $_MOD_LANG['ncssl_error_revoke_4'] = 'Revocation of multiple instances of reissu
 
 $_MOD_LANG['ncssl_back_to_service'] = '&laquo; Back to the service';
 
-$_MOD_LANG['ncsssl_jobtitle_required_for_symantec'] = 'Job Title is required for Symantec EV certificates';
+$_MOD_LANG['ncsssl_jobtitle_required_for_symantec'] = 'Job Title is required';
 
 
 $_MOD_LANG['ncssl_symantec_approver_email_notice'] = 'Approval email is not required for this type of certificate';
 
 
+$_MOD_LANG['ncssl_latin_characters_notice'] = 'Only Latin characters can be used in the Admin information';
