@@ -3,7 +3,7 @@
 // ****************************************************************************
 // *                                                                          *
 // * NameCheap.com WHMCS SSL Module                                           *
-// * Version 1.6.4
+// * Version 1.6.5
 // * Email: sslsupport@namecheap.com                                          *
 // *                                                                          *
 // * Copyright 2010-2013 NameCheap.com                                        *
@@ -159,6 +159,10 @@
 // Added product due date synchronization offset in settings section of addon
 // Simplified domain validation choice for Symantec DV certificates reissue
 //
+// 
+// Updated on March 28, 2016 to version 1.6.5
+// Fixed bug with approver emails for Symantec OV and EV certificates
+// Added notification about latin characters to the first certificate activation page
 //
 
 
@@ -713,7 +717,11 @@ function namecheapssl_SSLStepOne($params) {
         $script .= "})";
         $script .= '</script>';
         
-        _namecheapssl_replaceLangVariable('ssladmininfodetails', $_LANG['ncssl_reissue_notice_step1'].$script);
+        _namecheapssl_replaceLangVariable('ssladmininfodetails', $_LANG['ncssl_latin_characters_notice'] . '<br/><br/>' . $_LANG['ncssl_reissue_notice_step1'].$script);
+        
+    }else{
+        
+        _namecheapssl_replaceLangVariable('ssladmininfodetails', $_LANG['ncssl_latin_characters_notice']);
         
     }
     
@@ -1280,6 +1288,7 @@ function namecheapssl_SSLStepThree($params) {
     if(!$localCertInfo->loadServerTypes()){
         return array( 'error' => $_LANG['ncssl_unable_retrieve_certtypes'] . ' ' . $_LANG['ncssl_try_again_in_several_minutes'] );
     }
+    $provider = $localCertInfo->getProvider();
     
     
     $useHttpBasedValidation = (false === strpos($params['approveremail'], '@')) && $_LANG['ncssl_symantec_approver_email_notice']!=$params['approveremail'];
@@ -1412,7 +1421,7 @@ function namecheapssl_SSLStepThree($params) {
 
     
     
-    $provider = $localCertInfo->getProvider();
+    
     if(NcLocalCertInfo::CERTIFICATE_VALIDATION_TYPE_EV==$localCertInfo->getValidationType() ||
             NcLocalCertInfo::PROVIDER_THAWTE == $provider ||
             NcLocalCertInfo::PROVIDER_VERISIGN == $provider){
@@ -1454,18 +1463,24 @@ function namecheapssl_SSLStepThree($params) {
             $sanQuickSslPremium = true;
         }
         
-        if(!$useHttpBasedValidation && !$sanQuickSslPremium){
+        if( (NcLocalCertInfo::CERTIFICATE_VALIDATION_TYPE_EV == $localCertInfo->getValidationType() || NcLocalCertInfo::CERTIFICATE_VALIDATION_TYPE_OV == $localCertInfo->getValidationType()) && NcLocalCertInfo::PROVIDER_COMODO!=$provider){
+            // skip approver emails
+        }else{
             
-            
-            // set approver email to main domain
-            $requestParams['ApproverEmail'] = $params['approveremail'] . $params['domain'];        
-            $sansApproverEmails = array();
-            foreach($sans as $item){
-                $sansApproverEmails[] = $params['approveremail'] . $item;
+            if(!$useHttpBasedValidation && !$sanQuickSslPremium){
+                
+                // set approver email to main domain
+                $requestParams['ApproverEmail'] = $params['approveremail'] . $params['domain'];        
+                $sansApproverEmails = array();
+                foreach($sans as $item){
+                    $sansApproverEmails[] = $params['approveremail'] . $item;
+                }
+                $requestParams['DNSApproverEmails'] = join(',',$sansApproverEmails);
+
             }
-            $requestParams['DNSApproverEmails'] = join(',',$sansApproverEmails);
             
         }
+        
         
         if($sanQuickSslPremium){
             $currentAdditionalSansCount = 0;
