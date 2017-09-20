@@ -3,7 +3,7 @@
 // ****************************************************************************
 // *                                                                          *
 // * NameCheap.com WHMCS SSL Module                                           *
-// * Version 1.6.5
+// * Version 1.6.6
 // * Email: sslsupport@namecheap.com                                          *
 // *                                                                          *
 // * Copyright 2010-2013 NameCheap.com                                        *
@@ -164,6 +164,9 @@
 // Fixed bug with approver emails for Symantec OV and EV certificates
 // Added notification about latin characters to the first certificate activation page
 //
+// Updated on July 21 2017 to version 1.6.6
+// Minor fixes according to changes in API
+// Removed mysql_ functions, added support of MySQLi extension
 
 
 require_once dirname(__FILE__) . "/namecheapapi.php";
@@ -466,7 +469,7 @@ $(document).ready(function() {
         ),
         $_fields['CertificateType'] => array(
             'Type' => 'dropdown',
-            'Options' => implode(",", array_keys($_namecheapSSLTypes)),
+            'Options' => ',' . implode(",", array_keys($_namecheapSSLTypes)),
         ),
         ' ' => array(),
         $_fields['PromotionCode'] => array(
@@ -1090,7 +1093,8 @@ function namecheapssl_SSLStepTwo($params) {
 
 
     foreach ($params as $key => $val) {
-        $params[$key] = trim($val);
+        if(is_string($val))
+           $params[$key] = trim($val);
     }
 
     
@@ -1752,8 +1756,11 @@ function namecheapssl_SSLStepThree($params) {
             namecheapssl_log('client.reissue', 'client_reissue', array($certificateId, $result['SSLReissueResult']['@attributes']['ID']), $params['serviceid']);
             
             if ($useHttpBasedValidation) {
-                $fileName = $result['SSLReissueResult']['HttpDCValidation']['FileName'];
-                $fileContent = $result['SSLReissueResult']['HttpDCValidation']['FileContent'];
+                if(!isset($result['SSLReissueResult']['HttpDCValidation']['DNS'][0])){
+                    $result['SSLReissueResult']['HttpDCValidation']['DNS'][0] = $result['SSLReissueResult']['HttpDCValidation']['DNS'];
+                }
+                $fileName = $result['SSLReissueResult']['HttpDCValidation']['DNS'][0]['FileName'];
+                $fileContent = $result['SSLReissueResult']['HttpDCValidation']['DNS'][0]['FileContent'];
             }
             
             
@@ -1777,7 +1784,7 @@ function namecheapssl_SSLStepThree($params) {
             $api = _namecheapssl_initApi($params);
             $response = $api->request("namecheap.ssl.activate", $requestParams);
             $result = $api->parseResponse($response);
-
+            
             if($useHttpBasedValidation){
                 namecheapssl_log('client.stepThree', 'client_step_three_activated_http_based_validation', array($sslOrderInfo['certtype'], $certificateId, $requestParams['AdminEmailAddress']), $params['serviceid']);                
             }else{
@@ -1790,8 +1797,12 @@ function namecheapssl_SSLStepThree($params) {
             }
             
             if ($useHttpBasedValidation) {
-                $fileName = $result['SSLActivateResult']['HttpDCValidation']['FileName'];
-                $fileContent = $result['SSLActivateResult']['HttpDCValidation']['FileContent'];
+                if(!isset($result['SSLActivateResult']['HttpDCValidation']['DNS'][0]))
+                {
+                    $result['SSLActivateResult']['HttpDCValidation']['DNS'][0] = $result['SSLActivateResult']['HttpDCValidation']['DNS'];
+                }
+                $fileName = $result['SSLActivateResult']['HttpDCValidation']['DNS'][0]['FileName'];
+                $fileContent = $result['SSLActivateResult']['HttpDCValidation']['DNS'][0]['FileContent'];
             }
             
         } catch (Exception $e) {

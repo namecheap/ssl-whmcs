@@ -159,16 +159,16 @@ $_MOD_LANG['ncssl_addon_changes_saved_success'] = 'Changes Saved Successfully!';
 
 $_MOD_LANG['ncssl_http_based_validation'] = "HTTP based validation";
 $_MOD_LANG['ncssl_show_validation_file_contents'] = 'Show validation file contents';
-$_MOD_LANG['ncssl_custom_phrase_sslconfigcompletedetails'] = 'Please create<br /><br />%filename%<br /><br />with contents<br /><br />%contents%<br /><br />and put it into the root directory of your domain. It may take some time for file to be automatically validated and cert to be issued by Certificate Authority';
+$_MOD_LANG['ncssl_custom_phrase_sslconfigcompletedetails'] = 'Please create a file named<br /><br />%filename%<br /><br />with contents<br /><br />%contents%<br /><br />and put it to the following location on your hosting server: http(s)://example.com/.well-known/pki-validation/<filename.txt>. It may take some time for file to be automatically validated and cert to be issued by Certificate Authority';
 $_MOD_LANG['ncssl_download_certificate'] = "Download certificate"; 
 
 
 $_MOD_LANG['ncssl_custom_phrase_sslcertapproveremaildetails'] = 'Please select any of emails if you wish to proceed with email-based validation. An approval email will be sent to selected address by Certificate Authority after activation.';
-$_MOD_LANG['ncssl_custom_phrase_sslcertapproveremaildetails_http_based'] = '<br /><br />If you select \'HTTP based validation\' option,  you will need to place a certain file into a root directory of your domain. Name and contents of the file will be provided at the last step of the activation process. No emails will be sent for Domain Control Validation.';
+$_MOD_LANG['ncssl_custom_phrase_sslcertapproveremaildetails_http_based'] = '<br /><br />If you select \'HTTP based validation\' option,  you will need to place a certain file into a specific location of your server. Name and contents of the file will be provided at the last step of the activation process. No emails will be sent for Domain Control Validation.';
 
 $_MOD_LANG['ncssl_custom_phrase_sslcertapproveremaildetails_san'] = 'Please select local part of emails you wish to receive your approval emails to. This local part will be used to send approval emails for all domains and subdomains. <br /><br />For example, if \'admin@\' is selected as approver having main domain specified as \'domain.com\' and addon domain is \'sub.domain1.com\' , the approver emails will be sent to admin@domain.com and admin@sub.domain1.com.';
 
-$_MOD_LANG['ncssl_custom_phrase_sslcertapproveremaildetails_san_http_based'] = '<br /><br />If you select \'HTTP based validation\' option, you will need to place a certain file into a root directory of servers for all of the domains specified while activation. Name and contents of the file will be provided at the last step of the activation process. No emails will be sent for Domain Control Validation.';
+$_MOD_LANG['ncssl_custom_phrase_sslcertapproveremaildetails_san_http_based'] = '<br /><br />If you select \'HTTP based validation\' option, you will need to place a certain file into a specific locations of servers for all of the domains specified while activation. Name and contents of the file will be provided at the last step of the activation process. No emails will be sent for Domain Control Validation.';
 
 
 $_MOD_LANG['ncssl_san_items_title'] = 'Enter additional domains';

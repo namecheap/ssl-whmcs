@@ -131,11 +131,11 @@ class NamecheapApi
             $curl_error = curl_error($ch);
             curl_close($ch);
             
-            if($curl_error){                
+            if($curl_error){     
                 if($this->_debugMode){
                    namecheapssl_save_debug_info('Curl error: ' . $curl_error . ". Unable to request data from " . $this->_requestUrl,$command,true,$this->_lastLogRecordId);
                 }
-                throw new NamecheapApiException('Connection error');
+                throw new NamecheapApiException('Curl error: ' . $curl_error);
             }
             
         }else{
@@ -268,7 +268,7 @@ class NamecheapApi
      */
     private function _getClientIp()
     {
-        $clientip = !empty($_SERVER['HTTP_X_FORWARDED_FOR']) ? $_SERVER['HTTP_X_FORWARDED_FOR'] : $_SERVER['REMOTE_ADDR'];
+        $clientip = $_SERVER['REMOTE_ADDR'];
         return $clientip ? $clientip : "10.11.12.13";
     }
 
@@ -341,17 +341,42 @@ class NamecheapApi
 if (!class_exists('NcSql')){
     class NcSql{
         
+        protected static $_link;
+        
+        public static function getLink(){
+            
+            $backtrace = debug_backtrace();
+            
+            if(is_resource(self::$_link)) return self::$_link;
+            include(dirname(__FILE__).'/../../../configuration.php');
+            self::$_link = mysqli_connect($db_host, $db_username, $db_password, $db_name);
+            return self::$_link;
+        }
+        
         public static function q($sql){
-            $r = mysql_query($sql);
+            //echo $sql.'<br>';
+            $r = mysqli_query(self::getLink(), $sql);
             return $r;
         }
         
         public static function e($sql){
-            return mysql_real_escape_string($sql);
+            return mysqli_escape_string(self::getLink(),$sql);
+        }
+        
+        public static function fetchAssoc($r){
+            return mysqli_fetch_assoc($r);
+        }
+        
+        public static function fetchArray($r){
+            return mysqli_fetch_array($r);
+        }
+        
+        public static function numRows($r){
+            return mysqli_num_rows($r);
         }
         
         public static function insertId(){
-            return mysql_insert_id();
+            return mysqli_insert_id(self::getLink());
         }
         
         public static function sql2set($sql){
@@ -360,10 +385,27 @@ if (!class_exists('NcSql')){
                 return false;
             } 
             $row = array();
-            while ($row=mysql_fetch_assoc($r)){
+            while ($row=mysqli_fetch_assoc($r)){
                 $result[]=$row;
             }
             return $result;
+        }
+        
+        public static function sql2set_column($sql){
+            
+            $data = self::sql2set($sql);
+            $set = array();
+            if(!empty($data)){
+                
+                $aKey = array_slice(array_keys($data[0]), 0, 1);
+                $columnName = $aKey[0];
+                
+                foreach($data as $v){
+                    $set[] = $v[$columnName];
+                }
+                
+            }
+            return $set;
         }
         
         public static function sql2row($sql){
@@ -371,7 +413,7 @@ if (!class_exists('NcSql')){
             if(!$r){
                 return false;
             }
-            return mysql_fetch_assoc($r);
+            return mysqli_fetch_assoc($r);
         }
         
         public static function sqlNumRows($sql){
@@ -379,7 +421,7 @@ if (!class_exists('NcSql')){
             if(!$r){
                 return false;
             }
-            return mysql_num_rows($r);
+            return mysqli_num_rows($r);
         }
         
         public static function sql2set_keyval($sql){
@@ -400,13 +442,13 @@ if (!class_exists('NcSql')){
             if(!$r){
                 return false;
             }
-            $row = mysql_fetch_assoc($r);
+            $row = mysqli_fetch_assoc($r);
             return array_shift($row);
         }
         
         public static function insert($table,$array){
             self::q("INSERT INTO $table SET " . self::array2queryPart($array));
-            return mysql_insert_id();
+            return mysqli_insert_id(self::getLink());
         }
         
         public static function wrapInQuotes($string){

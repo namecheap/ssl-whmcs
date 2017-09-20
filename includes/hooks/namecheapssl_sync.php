@@ -3,36 +3,33 @@
     
     if (!defined("WHMCS"))
 	die("This file cannot be accessed directly");
-
+    
+    require_once dirname(__FILE__) . "/../../modules/servers/namecheapssl/namecheapapi.php";
+    
+    
+    
     
     function Namecheapssl_hook_sync(){
         
         set_time_limit(0);
         
         // production sync
-        $r = mysql_query("SELECT DISTINCT configoption1 AS user, configoption2 AS password FROM tblproducts WHERE configoption9='' AND configoption1!='' AND configoption2!='' AND servertype='namecheapssl'");
-        while ($row=mysql_fetch_assoc($r)){
+        $r = NcSql::q("SELECT DISTINCT configoption1 AS user, configoption2 AS password FROM tblproducts WHERE configoption9='' AND configoption1!='' AND configoption2!='' AND servertype='namecheapssl'");
+        while ($row=NcSql::fetchAssoc($r)){
             Namecheapssl_hook_sync_2($row['user'],$row['password'],false);
         }
         
         // sandbox sync
-        $r = mysql_query("SELECT DISTINCT configoption3 AS user, configoption4 AS password FROM tblproducts WHERE configoption9='on' AND configoption3!='' AND configoption4!='' AND servertype='namecheapssl'");
-        while ($row=mysql_fetch_assoc($r)){
+        $r = NcSql::q("SELECT DISTINCT configoption3 AS user, configoption4 AS password FROM tblproducts WHERE configoption9='on' AND configoption3!='' AND configoption4!='' AND servertype='namecheapssl'");
+        while ($row= NcSql::fetchAssoc($r)){
             Namecheapssl_hook_sync_2($row['user'],$row['password'],true);
         }
         
     }
     
     
-    function Namecheapssl_hook_sync_mysql_query($sql){
-        $r = mysql_query($sql);
-        return $r;
-    }
-    
-    
     function Namecheapssl_hook_sync_2($user,$password,$debugMode = false){
         
-        require_once dirname(__FILE__) . "/../../modules/servers/namecheapssl/namecheapapi.php";
         require_once dirname(__FILE__) . "/../../modules/servers/namecheapssl/namecheapssl.php";
         
         namecheapssl_log('hook.sync', 'sync_hook_started', $user);
@@ -82,10 +79,10 @@
                     list($month, $day, $year) = explode("/", $aCertInfo['@attributes']['ExpireDate']);
                     
                     // 
-                    $res = Namecheapssl_hook_sync_mysql_query("SELECT h.id FROM `tblhosting` h INNER JOIN `tblsslorders` s ON s.serviceid=h.id  WHERE s.remoteid='{$aCertInfo['@attributes']['CertificateID']}' AND h.`nextduedate` != '$year-$month-$day'");
+                    $res = NcSql::q("SELECT h.id FROM `tblhosting` h INNER JOIN `tblsslorders` s ON s.serviceid=h.id  WHERE s.remoteid='{$aCertInfo['@attributes']['CertificateID']}' AND h.`nextduedate` != '$year-$month-$day'");
                     
-                    if (mysql_num_rows($res)){
-                        $iHostingId = array_shift(mysql_fetch_array($res));
+                    if (NcSql::numRows($res)){
+                        $iHostingId = array_shift(NcSql::fetchArray($res));
                         
                         $duedate = "$year-$month-$day";
                         if($sync_date_offset){
@@ -96,23 +93,24 @@
                                    set `nextduedate` = '$duedate',
                                        `nextinvoicedate` = '$duedate'
                                  where `id` = '$iHostingId'";                        
-                        Namecheapssl_hook_sync_mysql_query($sql);
+                        NcSql::q($sql);
                         namecheapssl_log('hook.sync', 'sync_hook_updated_duedate', array("$duedate"),$iHostingId);
                     }
                     
                     // sync domain
                     if(!empty($aCertInfo['@attributes']['HostName']) && 'active'==$aCertInfo['@attributes']['Status']){
-                        $domain = mysql_real_escape_string($aCertInfo['@attributes']['HostName']);
-                        $res = Namecheapssl_hook_sync_mysql_query("SELECT h.id FROM `tblhosting` h INNER JOIN `tblsslorders` s ON s.serviceid=h.id  WHERE s.remoteid='{$aCertInfo['@attributes']['CertificateID']}' AND h.`domain` != '$domain'");
-                        if (mysql_num_rows($res)){
-                            $iHostingId = array_shift(mysql_fetch_array($res));                        
+                        $domain = NcSql::e($aCertInfo['@attributes']['HostName']);
+                        $res = NcSql::q("SELECT h.id FROM `tblhosting` h INNER JOIN `tblsslorders` s ON s.serviceid=h.id  WHERE s.remoteid='{$aCertInfo['@attributes']['CertificateID']}' AND h.`domain` != '$domain'");
+                        if (NcSql::numRows($res)){
+                            $iHostingId = array_shift(NcSql::fetchArray($res));
                             $sql = "update `tblhosting`
                                         set `domain` = '$domain'
                                         where `id` = '$iHostingId'";								 
-                            Namecheapssl_hook_sync_mysql_query($sql);
+                            NcSql::q($sql);
                             namecheapssl_log('hook.sync', 'sync_hook_updated_domain', array($domain),$iHostingId);
                         }
                     }
+                    
                     
                 }
                 
@@ -121,9 +119,9 @@
                     
                         // synchronize reissue state
                         $sql ="SELECT * FROM tblsslorders WHERE remoteid='{$aCertInfo['@attributes']['CertificateID']}'";
-                        $r = Namecheapssl_hook_sync_mysql_query($sql);
-                        if (mysql_num_rows($r)){
-                            $aWhmcsCert = mysql_fetch_assoc($r);
+                        $r = NcSql::q($sql);
+                        if (NcSql::numRows($r)){
+                            $aWhmcsCert = NcSql::fetchAssoc($r);
                             // get replaced certificate info                            
                             try{
                                 $replaced_cert_request_params = array('CertificateID' => (int)$aWhmcsCert['remoteid']);        
@@ -140,10 +138,10 @@
                                     }
                                     
                                     $sql = "UPDATE tblsslorders SET remoteid='$replacedBy' WHERE remoteid='{$aCertInfo['@attributes']['CertificateID']}'";
-                                    Namecheapssl_hook_sync_mysql_query($sql);
+                                    NcSql::q($sql);
                                     
                                     $sql = "UPDATE mod_namecheapssl SET certificate_id='$replacedBy' WHERE certificate_id='{$aCertInfo['@attributes']['CertificateID']}'";
-                                    Namecheapssl_hook_sync_mysql_query($sql);
+                                    NcSql::q($sql);
                                     
                                     namecheapssl_log('hook.sync', 'sync_hook_updated_remoteid', array($aCertInfo['@attributes']['CertificateID'], $replacedBy),$aWhmcsCert['serviceid']);
                                     
@@ -152,7 +150,6 @@
                             }catch(Exception $e){
                                 echo $e->getMessage();
                                 return;
-                                //exit();
                             }
                             
                         }                        
@@ -177,11 +174,12 @@
         
         $query = "SELECT log.*,c.email FROM mod_namecheapssl_log log LEFT JOIN tblclients AS c ON (log.userid=c.id AND user='client') WHERE log.date BETWEEN '$dateStart' AND '$dateEnd' AND `debug`=0 ";
         
-        $r = mysql_query($query);
-        if(mysql_num_rows($r)){
+        $r = NcSql::q($query);
+        
+        if(NcSql::numRows($r)){
             
             $html = "Namecheap SSL Module Cron Job Report for $dateStart-$dateEnd <br><br>";
-            while($row=mysql_fetch_assoc($r)){
+            while($row= NcSql::fetchAssoc($r)){
                 $html .= "{$row['date']}; {$row['description']}; " . ('client' == $row['user'] ? ' User(client): ' . $row['email'] : ' Admin user: ' . $row['user']) . "({$row['userid']});" .  ( !empty($row['serviceid']) ? "Service id: {$row['serviceid']}; " : '') ;
                 $html .= '<br>';
                 
@@ -201,9 +199,9 @@
         if(!empty($params['filename']) && !empty($params['type']) && $params['filename']=='upgrade' && $params['type']=='configoptions'){
             if(!empty($params['configoptions'])&&!empty($params['id'])){
                 
-                $r = mysql_query('SELECT tblproducts.servertype FROM tblproducts JOIN tblhosting ON tblhosting.packageid=tblproducts.id WHERE tblhosting.id='.(int)$params['id']);
+                $r = NcSql::q('SELECT tblproducts.servertype FROM tblproducts JOIN tblhosting ON tblhosting.packageid=tblproducts.id WHERE tblhosting.id='.(int)$params['id']);
                 if(!$r){return;}
-                $row = mysql_fetch_assoc($r);
+                $row = NcSql::fetchAssoc($r);
                 if('namecheapssl'!==$row['servertype']){
                     return;
                 }
@@ -213,13 +211,13 @@
                     
                     
                     // check if options is san and related to namecheap module product
-                    $r = mysql_query("SELECT * FROM tblproductconfigoptions WHERE id=$configid");
-                    $row = mysql_fetch_assoc($r);
+                    $r = NcSql::q("SELECT * FROM tblproductconfigoptions WHERE id=$configid");
+                    $row = NcSql::fetchAssoc($r);
                     if(substr($row['optionname'],0,3)==='san'){
                         
                         // it's a san option; we need to check old value
-                        $r = mysql_query("SELECT qty FROM tblhostingconfigoptions WHERE relid=".(int)$params['id'] . " AND configid=".$configid);
-                        $row = mysql_fetch_assoc($r);
+                        $r = NcSql::q("SELECT qty FROM tblhostingconfigoptions WHERE relid=".(int)$params['id'] . " AND configid=".$configid);
+                        $row = NcSql::fetchAssoc($r);
                         
                         $qty = $row['qty'];
                         
