@@ -3,7 +3,7 @@
 // ****************************************************************************
 // *                                                                          *
 // * NameCheap.com WHMCS SSL Module Addon                                     *
-// * Version 1.41
+// * Version 1.42
 // * Email: sslsupport@namecheap.com                                          *
 // *                                                                          *
 // * Copyright 2010-2015 NameCheap.com                                        *
@@ -28,7 +28,7 @@ function namecheap_ssl_config() {
     $configarray = array(
     "name" => "Namecheap SSL Module Addon",
     "description" => "This addon performs several important operations related to Namecheap SSL Module. 1) It performs necessary installation/update procedures during Namecheap SSL Module installation/update. 2) It logs details of all SSL certificate reissues. 3) It performs full logging of all API calls for the products with activated \"debug mode\" option.",
-    "version" => "1.41",
+    "version" => "1.42",
     "author" => "Namecheap",
     "language" => "english",
     "fields" => array(
@@ -43,7 +43,8 @@ function namecheap_ssl_activate() {
     
     // 1. Create configuration email template
     $result = select_query("tblemailtemplates","COUNT(*)", array("name"=>"SSL Certificate Configuration Required"));
-    $data = mysql_fetch_array($result);
+    $data = NcSql::fetchArray($result);
+    
     if (!$data[0]) {
         full_query("INSERT INTO `tblemailtemplates` (`type` ,`name` ,`subject` ,`message` ,`fromname` ,`fromemail` ,`disabled` ,`custom` ,`language` ,`copyto` ,`plaintext` )VALUES ('product', 'SSL Certificate Configuration Required', 'SSL Certificate Configuration Required', '<p>Dear {\$client_name},</p><p>Thank you for your order for an SSL Certificate. Before you can use your certificate, it requires configuration which can be done at the URL below.</p><p>{\$ssl_configuration_link}</p><p>Instructions are provided throughout the process but if you experience any problems or have any questions, please open a ticket for assistance.</p><p>{\$signature}</p>', '', '', '', '', '', '', '0')");
     }
@@ -63,11 +64,11 @@ function namecheap_ssl_activate() {
                                       `admin_email` VARCHAR( 255 ),
                                       PRIMARY KEY ( `id` )
                         ) ENGINE = MYISAM ";
-    mysql_query($queryString);
+    NcSql::q($queryString);
     
     
     // 2. Create auxiliary module log table
-    mysql_query("CREATE TABLE IF NOT EXISTS `mod_namecheapssl_log` (
+    NcSql::q("CREATE TABLE IF NOT EXISTS `mod_namecheapssl_log` (
 	`id` INT(10) NOT NULL AUTO_INCREMENT,
 	`date` DATETIME NOT NULL DEFAULT '0000-00-00 00:00:00',
 	`action` VARCHAR(255) NOT NULL DEFAULT '',
@@ -81,16 +82,13 @@ function namecheap_ssl_activate() {
         ENGINE=MyISAM");
 
     // 2. Update existing auxiliary table: add reissue functionality
-    $r = mysql_query("SHOW COLUMNS FROM `mod_namecheapssl` LIKE 'reissue'");
-    
-    if (0==mysql_num_rows($r)){
-        mysql_query("ALTER TABLE `mod_namecheapssl` ADD COLUMN `reissue` TINYINT(1) NULL DEFAULT '0' AFTER `admin_email`");
+    if (!NcSql::sqlNumRows("SHOW COLUMNS FROM `mod_namecheapssl` LIKE 'reissue'")){
+        NcSql::q("ALTER TABLE `mod_namecheapssl` ADD COLUMN `reissue` TINYINT(1) NULL DEFAULT '0' AFTER `admin_email`");
     }
     
     // 3. Add reissue invitation letter
-    $r = mysql_query("SELECT id FROM tblemailtemplates WHERE name='SSL Certificate Reissue Invitation'");
-    if (0 == mysql_num_rows($r)){
-        mysql_query("INSERT INTO `tblemailtemplates` (`type` ,`name` ,`subject` ,`message` ,`fromname` ,`fromemail` ,`disabled` ,`custom` ,`language` ,`copyto` ,`plaintext` )VALUES ('product', 
+    if (!NcSql::sqlNumRows("SELECT id FROM tblemailtemplates WHERE name='SSL Certificate Reissue Invitation'")){
+        NcSql::q("INSERT INTO `tblemailtemplates` (`type` ,`name` ,`subject` ,`message` ,`fromname` ,`fromemail` ,`disabled` ,`custom` ,`language` ,`copyto` ,`plaintext` )VALUES ('product', 
             'SSL Certificate Reissue Invitation', 
             'SSL Certificate Reissue Invitation',
             '<p>Dear {\$client_name},</p><p>A reissue request has been initiated by an administrator for the following: {\$ssl_certificate_id}. In order to reissue the certificate please go through a configuration process at the URL below.</p><p>{\$ssl_configuration_link}</p><p>Instructions are provided throughout the process but if you experience any problems or have any questions, please open a ticket for assistance.</p><p>{\$signature}</p>',
@@ -130,19 +128,17 @@ function namecheap_ssl_upgrade($vars) {
 function namecheap_ssl_check_upgrades(){
     
     // v 1.1
-    $r = mysql_query("SHOW COLUMNS FROM `mod_namecheapssl_log` LIKE 'debug'");
-    if (0==mysql_num_rows($r)){
-        mysql_query("ALTER TABLE `mod_namecheapssl_log`	ADD COLUMN `debug` TINYINT(1) NOT NULL DEFAULT '0' AFTER `id`");
-        mysql_query("ALTER TABLE `mod_namecheapssl_log`	CHANGE COLUMN `user` `user` VARCHAR(255) NOT NULL AFTER `description`, ADD INDEX `debug` (`debug`), ADD INDEX `date` (`date`), ADD INDEX `action` (`action`), ADD INDEX `user` (`user`), ADD INDEX `userid` (`userid`)");
-        mysql_query("ALTER TABLE `mod_namecheapssl_log`	ADD COLUMN `parentid` INT(10) NOT NULL DEFAULT '0' AFTER `id`");
-        mysql_query("ALTER TABLE `mod_namecheapssl_log`	ADD COLUMN `serviceid` INT(10) NOT NULL DEFAULT '0' AFTER `parentid`");
+    if (!NcSql::sqlNumRows("SHOW COLUMNS FROM `mod_namecheapssl_log` LIKE 'debug'")){
+        NcSql::q("ALTER TABLE `mod_namecheapssl_log`	ADD COLUMN `debug` TINYINT(1) NOT NULL DEFAULT '0' AFTER `id`");
+        NcSql::q("ALTER TABLE `mod_namecheapssl_log`	CHANGE COLUMN `user` `user` VARCHAR(255) NOT NULL AFTER `description`, ADD INDEX `debug` (`debug`), ADD INDEX `date` (`date`), ADD INDEX `action` (`action`), ADD INDEX `user` (`user`), ADD INDEX `userid` (`userid`)");
+        NcSql::q("ALTER TABLE `mod_namecheapssl_log`	ADD COLUMN `parentid` INT(10) NOT NULL DEFAULT '0' AFTER `id`");
+        NcSql::q("ALTER TABLE `mod_namecheapssl_log`	ADD COLUMN `serviceid` INT(10) NOT NULL DEFAULT '0' AFTER `parentid`");
     }
     
     // v 1.2
-    $r = mysql_query("SHOW COLUMNS FROM `mod_namecheapssl` LIKE 'file_name'");
-    if (0==mysql_num_rows($r)){
-        mysql_query("ALTER TABLE `mod_namecheapssl` DROP COLUMN `status`, DROP COLUMN `creation_date`, DROP COLUMN `expiry_date`, DROP COLUMN `domain`,	DROP COLUMN `parse_csr`");
-        mysql_query("ALTER TABLE `mod_namecheapssl` ADD COLUMN `file_name` VARCHAR(255) NULL AFTER `reissue`, ADD COLUMN `file_content` VARCHAR(255) NULL AFTER `file_name`");
+    if (!NcSql::sqlNumRows("SHOW COLUMNS FROM `mod_namecheapssl` LIKE 'file_name'")){
+        NcSql::q("ALTER TABLE `mod_namecheapssl` DROP COLUMN `status`, DROP COLUMN `creation_date`, DROP COLUMN `expiry_date`, DROP COLUMN `domain`,	DROP COLUMN `parse_csr`");
+        NcSql::q("ALTER TABLE `mod_namecheapssl` ADD COLUMN `file_name` VARCHAR(255) NULL AFTER `reissue`, ADD COLUMN `file_content` VARCHAR(255) NULL AFTER `file_name`");
     }
     
     // v 1.3
@@ -150,18 +146,16 @@ function namecheap_ssl_check_upgrades(){
     
     // v 1.4
     // 
-    $r = mysql_query("SHOW COLUMNS FROM `mod_namecheapssl` LIKE 'configdata_copy'");
-    if (0==mysql_num_rows($r)){
-        mysql_query("ALTER TABLE `mod_namecheapssl` ADD COLUMN `configdata_copy` TEXT NULL DEFAULT NULL AFTER `file_content`");
-        mysql_query("ALTER TABLE `mod_namecheapssl` ADD COLUMN `revoke_data` TEXT NULL DEFAULT NULL AFTER `configdata_copy`;");
+    if (!NcSql::sqlNumRows("SHOW COLUMNS FROM `mod_namecheapssl` LIKE 'configdata_copy'")){
+        NcSql::q("ALTER TABLE `mod_namecheapssl` ADD COLUMN `configdata_copy` TEXT NULL DEFAULT NULL AFTER `file_content`");
+        NcSql::q("ALTER TABLE `mod_namecheapssl` ADD COLUMN `revoke_data` TEXT NULL DEFAULT NULL AFTER `configdata_copy`;");
     }
     
     
     // v 1.41
     // 
-    $r = mysql_query("SHOW TABLES LIKE 'mod_namecheapssl_settings'");
-    if (0==mysql_num_rows($r)){
-        mysql_query("CREATE TABLE `mod_namecheapssl_settings` (
+    if (!NcSql::sqlNumRows("SHOW TABLES LIKE 'mod_namecheapssl_settings'")){
+        NcSql::q("CREATE TABLE `mod_namecheapssl_settings` (
                 `name` VARCHAR(50) NOT NULL,
                 `value` VARCHAR(255) NOT NULL
         )
@@ -200,16 +194,8 @@ function namecheap_ssl_output($vars) {
         
         // prepare data for actions filters        
         // actions
-        $view['filter_action_options'] = array();
-        $sql = "SELECT DISTINCT action FROM mod_namecheapssl_log";
-        $r = mysql_query($sql);
-        if (mysql_numrows($r)){
-            while ($row=mysql_fetch_assoc($r)){
-                if(!empty($row['action'])){
-                    $view['filter_action_options'][] = $row['action'];
-                }
-            }
-        }
+        $view['filter_action_options'] = NcSql::sql2set_column("SELECT DISTINCT action FROM mod_namecheapssl_log");
+        
         // detect selected action
         if(!empty($_REQUEST['filter_action']) && in_array($_REQUEST['filter_action'],$view['filter_action_options'])){
             $view['filter_action_value'] = $_REQUEST['filter_action'];
@@ -235,7 +221,7 @@ function namecheap_ssl_output($vars) {
         $sqlWhereArray = array();
         // action value
         if(!empty($view['filter_action_value'])){
-            $sqlWhereArray[] = sprintf(" action='%s' " , mysql_real_escape_string($view['filter_action_value']));
+            $sqlWhereArray[] = sprintf(" action='%s' " , NcSql::e($view['filter_action_value']));
         }
         // date from value
         if(!empty($view['filter_date_from_value'])){
@@ -249,9 +235,9 @@ function namecheap_ssl_output($vars) {
         // admin / client filter
         if(!empty($view['filter_user_value'])){
             if(false !==  strpos($view['filter_user_value'], '@')){
-                $sqlWhereArray[] = sprintf("c.email = '%s'", mysql_real_escape_string($view['filter_user_value']));
+                $sqlWhereArray[] = sprintf("c.email = '%s'", NcSql::e($view['filter_user_value']));
             }else{
-                $sqlWhereArray[] = sprintf("log.user LIKE '%s%%'", mysql_real_escape_string($view['filter_user_value']));
+                $sqlWhereArray[] = sprintf("log.user LIKE '%s%%'", NcSql::e($view['filter_user_value']));
             }
         }
         
@@ -265,21 +251,11 @@ function namecheap_ssl_output($vars) {
         $sql = "SELECT log.*,c.email FROM mod_namecheapssl_log log LEFT JOIN tblclients AS c ON (log.userid=c.id AND user='client') $sqlWhere ORDER BY log.id DESC LIMIT $iLimit,$iOffset";    
         
         
-        
-        $view['log_items'] = array();
-        $r = mysql_query($sql);    
-        if (mysql_numrows($r)){
-            while ($row=mysql_fetch_assoc($r)){
-                $view['log_items'][] = $row;
-            }
-        }
-        
-        
+        $view['log_items'] = NcSql::sql2set($sql);
+       
         // query for count
         $sql = "SELECT COUNT(log.id) FROM mod_namecheapssl_log log LEFT JOIN tblclients AS c ON (log.userid=c.id AND user='client') $sqlWhere" ;        
-        $r = mysql_query($sql);
-        $row = mysql_fetch_array($r);
-        $iCountOfLogItems =  array_shift($row);
+        $iCountOfLogItems = NcSql::sql2cell($sql);
         $iCountOfPages = (int)ceil($iCountOfLogItems/$iOffset);
         
         
@@ -295,15 +271,14 @@ function namecheap_ssl_output($vars) {
             $view['hostingid'] = (int)$_REQUEST['hostingid'];
             
             // search product            
-            $r = mysql_query('SELECT orderid, tblhosting.domain, tblproducts.name AS productname FROM tblhosting JOIN tblproducts ON tblhosting.packageid=tblproducts.id WHERE tblhosting.id='.(int)$_REQUEST['hostingid']);
-            $row = mysql_fetch_assoc($r);
+            $row = NcSql::sql2row('SELECT orderid, tblhosting.domain, tblproducts.name AS productname FROM tblhosting JOIN tblproducts ON tblhosting.packageid=tblproducts.id WHERE tblhosting.id='.(int)$_REQUEST['hostingid']);
             
             // check san certificate
             // get config options
             $certHasSanOption = false;
-            $r = mysql_query('SELECT tblproductconfigoptions.optionname FROM tblproductconfigoptions JOIN tblhostingconfigoptions ON (tblhostingconfigoptions.configid=tblproductconfigoptions.id) WHERE tblhostingconfigoptions.relid='.(int)$_REQUEST['hostingid']);
+            $r = NcSql::q('SELECT tblproductconfigoptions.optionname FROM tblproductconfigoptions JOIN tblhostingconfigoptions ON (tblhostingconfigoptions.configid=tblproductconfigoptions.id) WHERE tblhostingconfigoptions.relid='.(int)$_REQUEST['hostingid']);
             $optionNames = array();
-            while(false!==($optionsRow=mysql_fetch_assoc($r))){                
+            while($optionsRow=NcSql::fetchAssoc($r)){                
                 $optionNames[] = $optionsRow['optionname'];
                 if( 'san' == substr($optionsRow['optionname'],0,3)){
                     $certHasSanOption = true;
@@ -319,8 +294,7 @@ function namecheap_ssl_output($vars) {
             }else{
                 
                 // select nc remote id
-                $r = mysql_query('SELECT * FROM tblsslorders WHERE serviceid='.(int)$_REQUEST['hostingid']);
-                $ssl_order = mysql_fetch_array($r);
+                $ssl_order = NcSql::sql2row('SELECT * FROM tblsslorders WHERE serviceid='.(int)$_REQUEST['hostingid']);
                 
                 if(false==$ssl_order){
                     $view['found'] = false;
@@ -352,10 +326,10 @@ function namecheap_ssl_output($vars) {
                         // two mysql queries
                         
                         // update whmcs native table
-                        mysql_query('UPDATE tblsslorders SET remoteid='.(int)$_POST['remoteid'].' WHERE id='.$_POST['ssl_order_id']);
+                        NcSql::q('UPDATE tblsslorders SET remoteid='.(int)$_POST['remoteid'].' WHERE id='.$_POST['ssl_order_id']);
                         
                         // update custom module table
-                        mysql_query('UPDATE mod_namecheapssl SET certificate_id='.(int)$_POST['remoteid'].' WHERE id='.$_POST['ssl_order_id']);
+                        NcSql::q('UPDATE mod_namecheapssl SET certificate_id='.(int)$_POST['remoteid'].' WHERE id='.$_POST['ssl_order_id']);
                         
                         // redirect
                         $query_string = '?module=namecheap_ssl&action=sync&hostingid='.$_REQUEST['hostingid'].'&message=updated';
@@ -382,27 +356,24 @@ function namecheap_ssl_output($vars) {
         $users = array();
         
         // production certs
-        $query = "SELECT DISTINCT configoption1 AS user, configoption2 AS password, 'production' AS acc FROM tblproducts WHERE configoption9='' AND configoption1!='' AND configoption2!='' AND servertype='namecheapssl'";        
-        $r = mysql_query($query);
-        while (false!== ($row=  mysql_fetch_assoc($r))){
+        $userList = NcSql::sql2set("SELECT DISTINCT configoption1 AS user, configoption2 AS password, 'production' AS acc FROM tblproducts WHERE configoption9='' AND configoption1!='' AND configoption2!='' AND servertype='namecheapssl'");        
+        foreach($userList as $row){
             $view['userlist'][] = array(
                 'user'=>$row['user'],
                 'acc'=>'production'
                 );
             $users['production'][$row['user']] = $row;
         }
-        
+            
         // sandbox users
-        $query = "SELECT DISTINCT configoption3 AS user, configoption4 AS password, 'sandbox' AS acc FROM tblproducts WHERE configoption9='on' AND configoption3!='' AND configoption4!='' AND servertype='namecheapssl'";        
-        $r = mysql_query($query);
-        while (false!== ($row=  mysql_fetch_assoc($r))){
+        $userList = NcSql::sql2set("SELECT DISTINCT configoption3 AS user, configoption4 AS password, 'sandbox' AS acc FROM tblproducts WHERE configoption9='on' AND configoption3!='' AND configoption4!='' AND servertype='namecheapssl'");
+        foreach($userList as $row){
             $view['userlist'][] = array(
                 'user'=>$row['user'],
                 'acc'=>'sandbox'
             );
             $users['sandbox'][$row['user']] = $row;
         }
-        
         
         
         if(!empty($_REQUEST['user'])&&!empty($_REQUEST['acc'])){
@@ -449,13 +420,9 @@ function namecheap_ssl_output($vars) {
                         $items[$k]['namecheap'] = $item['@attributes'];
                         
                         $query = sprintf("SELECT serviceid,status FROM tblsslorders WHERE module='namecheapssl' AND remoteid='%s'", $item['@attributes']['CertificateID']);
-                        $r = mysql_query($query);
-                        if(mysql_num_rows($r)){
-                            $items[$k]['whmcs'] = mysql_fetch_assoc($r);
-                        }
+                        $items[$k]['whmcs'] = NcSql::sql2row($query);
                         
                     }
-                    
                     
                     
                     $view['items'] = $items;
@@ -468,8 +435,6 @@ function namecheap_ssl_output($vars) {
                 
                 
             }catch(Exception $e){
-                var_dump($e->getMessage());
-                exit();
                 $view['globals']['error'] = $e->getMessage();
             }
             
