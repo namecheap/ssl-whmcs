@@ -2344,7 +2344,8 @@ function namecheapssl_ClientArea($params) {
     
     if (!empty($cert) && !empty($cert['id'])) {
 
-        $code = '<span><form action="clientarea.php?action=productdetails" method="post">' . "\n";
+        $code = '<span><form action="clientarea.php" method="get">' . "\n";
+        $code .= '<input type="hidden" name="action" value="productdetails" />' . "\n";
         $code .= '<input type="hidden" name="id" value="' . $params['serviceid'] . '" />' . "\n";
         $code .= '<input type="hidden" name="modop" value="custom" />' . "\n";
         $code .= '<input type="hidden" name="a" value="viewdetails" />' . "\n";
