@@ -1291,7 +1291,7 @@ function namecheapssl_SSLStepThree($params) {
     $provider = $localCertInfo->getProvider();
     
     
-    $useHttpBasedValidation = (false === strpos($params['approveremail'], '@')) && $_LANG['ncssl_symantec_approver_email_notice']!=$params['approveremail'];
+    $useHttpBasedValidation = (false === strpos($params['approveremail'], '@'));
     
     
     // added 20/02/2012 - whmcs 4.4.2 compatibility
