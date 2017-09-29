@@ -203,7 +203,7 @@ function namecheap_ssl_output($vars) {
         $view['filter_action_options'] = array();
         $sql = "SELECT DISTINCT action FROM mod_namecheapssl_log";
         $r = mysql_query($sql);
-        if (mysql_numrows($r)){
+        if (mysql_num_rows($r)){
             while ($row=mysql_fetch_assoc($r)){
                 if(!empty($row['action'])){
                     $view['filter_action_options'][] = $row['action'];
@@ -268,7 +268,7 @@ function namecheap_ssl_output($vars) {
         
         $view['log_items'] = array();
         $r = mysql_query($sql);    
-        if (mysql_numrows($r)){
+        if (mysql_num_rows($r)){
             while ($row=mysql_fetch_assoc($r)){
                 $view['log_items'][] = $row;
             }
