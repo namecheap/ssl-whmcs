@@ -3,6 +3,11 @@
 *** 
 **Note:** This version is fully compatible with 6.1.x versions of WHMCS. 
 ***
+
+##### Updated on September 7, 2017, to version 1.6.6 for WHMCS 7.x
+- Minor fixes according to changes in API
+- mysql_ functions removed, support of MySQLi extension added
+
 ##### Updated on March 28, 2016 to version 1.6.5 for WHMCS 6.x
 
 - Fixed bug with approver emails for Symantec OV and EV certificates
