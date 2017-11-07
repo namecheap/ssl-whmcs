@@ -1,7 +1,7 @@
 ## Namecheap.com WHMCS SSL Module
 
 *** 
-**Note:** This version is fully compatible with 6.1.x versions of WHMCS. 
+**Note:** This version is fully compatible with 7.1.x versions of WHMCS.
 ***
 
 ##### Updated on September 7, 2017, to version 1.6.6 for WHMCS 7.x
