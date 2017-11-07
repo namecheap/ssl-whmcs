@@ -347,7 +347,7 @@ if (!class_exists('NcSql')){
             
             $backtrace = debug_backtrace();
             
-            if(is_resource(self::$_link)) return self::$_link;
+            if(!empty(self::$_link)) return self::$_link;
             include(dirname(__FILE__).'/../../../configuration.php');
             self::$_link = mysqli_connect($db_host, $db_username, $db_password, $db_name);
             return self::$_link;
