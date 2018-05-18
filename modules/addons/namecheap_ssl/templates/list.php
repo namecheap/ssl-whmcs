@@ -1,7 +1,7 @@
 <?php echo $_LANG['ncssl_addon_list_user_list'] ?>:
 <ul>
     <?php foreach($view['userlist'] as $user):?>
-    <li><a href="<?php echo $view['global']['mod_action_url']?>&user=<?php echo $user['user']?>&acc=<?php echo $user['acc']?>"><?php echo $user['user']?></a></li>
+    <li><a href="<?php echo $view['global']['mod_action_url']?>&user=<?php echo htmlspecialchars($user['user'])?>&acc=<?php echo htmlspecialchars($user['acc'])?>"><?php echo htmlspecialchars($user['user'])?></a></li>
     <?php endforeach;?>
 </ul>
 
@@ -23,16 +23,16 @@
             </tr>
             <?php foreach($view['items'] as $item):?>
             <tr>
-                <td><?php echo $item['namecheap']['CertificateID']?></td>
-                <td><?php echo $item['namecheap']['HostName']?></td>
-                <td><?php echo $item['namecheap']['SSLType']?></td>
-                <td><?php echo $item['namecheap']['PurchaseDate']?></td>
-                <td><?php echo $item['namecheap']['ExpireDate']?></td>
-                <td><?php echo $item['namecheap']['ActivationExpireDate']?></td>
+                <td><?php echo htmlspecialchars($item['namecheap']['CertificateID'])?></td>
+                <td><?php echo htmlspecialchars($item['namecheap']['HostName'])?></td>
+                <td><?php echo htmlspecialchars($item['namecheap']['SSLType'])?></td>
+                <td><?php echo htmlspecialchars($item['namecheap']['PurchaseDate'])?></td>
+                <td><?php echo htmlspecialchars($item['namecheap']['ExpireDate'])?></td>
+                <td><?php echo htmlspecialchars($item['namecheap']['ActivationExpireDate'])?></td>
                 <td><?php echo 'true' == $item['namecheap']['IsExpiredYN'] ? 'Y' : 'N' ?></td>
-                <td><?php echo $item['namecheap']['Status']?></td>
-                <td><?php if(!empty($item['whmcs'])):?><a target="_blank" href="./clientsservices.php?userid=&id=<?php echo $item['whmcs']['serviceid']?>"><?php echo $item['whmcs']['serviceid'];?></a><?php else: ?>-<?php endif;?></td>
-                <td><?php echo !empty($item['whmcs']) ? $item['whmcs']['status'] : '-'?></td>
+                <td><?php echo htmlspecialchars($item['namecheap']['Status'])?></td>
+                <td><?php if(!empty($item['whmcs'])):?><a target="_blank" href="./clientsservices.php?userid=&id=<?php echo (int)$item['whmcs']['serviceid']?>"><?php echo (int)$item['whmcs']['serviceid'];?></a><?php else: ?>-<?php endif;?></td>
+                <td><?php echo !empty($item['whmcs']) ? htmlspecialchars($item['whmcs']['status']) : '-'?></td>
             </tr>    
             <?php endforeach;?>
         </tbody>
@@ -40,7 +40,7 @@
     
     <?php echo $_LANG['ncssl_addon_list_pages']?> :
     <?php foreach($view['pages'] as $p):?>
-        <a href="<?php echo $view['global']['mod_action_url']?>&user=<?php echo $view['user']['user']?>&acc=<?php echo $view['user']['acc']?>&page=<?php echo $p?>"><?php if($view['current_page']==$p):?><strong><?php echo $p?></strong><?php else : ?><?php echo $p?><?php endif; ?></a>
+    <a href="<?php echo $view['global']['mod_action_url']?>&user=<?php echo htmlspecialchars($view['user']['user'])?>&acc=<?php echo htmlspecialchars($view['user']['acc'])?>&page=<?php echo (int)$p?>"><?php if($view['current_page']==$p):?><strong><?php echo (int)$p?></strong><?php else : ?><?php echo (int)$p?><?php endif; ?></a>
     <?php endforeach;?>
     
 <?php endif; ?>

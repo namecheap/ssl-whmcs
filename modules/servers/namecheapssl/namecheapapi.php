@@ -693,7 +693,7 @@ if (!class_exists('NcLocalCertInfo')){
             $serializedRevokeData = serialize($revokeData);
             $this->_customRow['revoke_data'] = $serializedRevokeData;
             
-            $sql = "UPDATE mod_namecheapssl SET revoke_data='".NcSql::e($serializedRevokeData)."' WHERE id='" . $this->_customRow['id'] . "'";
+            $sql = "UPDATE mod_namecheapssl SET revoke_data='".NcSql::e($serializedRevokeData)."' WHERE id='" . (int)$this->_customRow['id'] . "'";
             NcSql::q($sql);
             
         }
@@ -745,14 +745,14 @@ if (!class_exists('NcLocalCertInfo')){
         
         public function backupConfigData(){
             if(empty($this->_customRow['configdata_copy'])){
-                $sql = "UPDATE mod_namecheapssl SET configdata_copy='".NcSql::e($this->_nativeRow['configdata'])."' WHERE id='" . $this->_customRow['id'] . "'";
+                $sql = "UPDATE mod_namecheapssl SET configdata_copy='".NcSql::e($this->_nativeRow['configdata'])."' WHERE id='" . (int)$this->_customRow['id'] . "'";
                 NcSql::q($sql);
                 $this->_customRow['configdata_copy'] = $this->_nativeRow['configdata'];
             }
         }
         
         public function clearBackupedConfigData(){
-            $sql = "UPDATE mod_namecheapssl SET configdata_copy='' WHERE id='" . $this->_customRow['id'] . "'";
+            $sql = "UPDATE mod_namecheapssl SET configdata_copy='' WHERE id='" . (int)$this->_customRow['id'] . "'";
             NcSql::q($sql);
         }
         

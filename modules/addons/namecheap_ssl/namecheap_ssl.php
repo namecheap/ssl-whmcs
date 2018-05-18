@@ -42,10 +42,7 @@ function namecheap_ssl_activate() {
     
     
     // 1. Create configuration email template
-    $result = select_query("tblemailtemplates","COUNT(*)", array("name"=>"SSL Certificate Configuration Required"));
-    $data = NcSql::fetchArray($result);
-    
-    if (!$data[0]) {
+    if (!NcSql::numRows(sprintf("SELECT id FROM tblemailtemplates WHERE name='%s'",'SSL Certificate Configuration Required'))) {
         full_query("INSERT INTO `tblemailtemplates` (`type` ,`name` ,`subject` ,`message` ,`fromname` ,`fromemail` ,`disabled` ,`custom` ,`language` ,`copyto` ,`plaintext` )VALUES ('product', 'SSL Certificate Configuration Required', 'SSL Certificate Configuration Required', '<p>Dear {\$client_name},</p><p>Thank you for your order for an SSL Certificate. Before you can use your certificate, it requires configuration which can be done at the URL below.</p><p>{\$ssl_configuration_link}</p><p>Instructions are provided throughout the process but if you experience any problems or have any questions, please open a ticket for assistance.</p><p>{\$signature}</p>', '', '', '', '', '', '', '0')");
     }
 
@@ -326,10 +323,10 @@ function namecheap_ssl_output($vars) {
                         // two mysql queries
                         
                         // update whmcs native table
-                        NcSql::q('UPDATE tblsslorders SET remoteid='.(int)$_POST['remoteid'].' WHERE id='.$_POST['ssl_order_id']);
+                        NcSql::q('UPDATE tblsslorders SET remoteid='.(int)$_POST['remoteid'].' WHERE id='.(int)$_POST['ssl_order_id']);
                         
                         // update custom module table
-                        NcSql::q('UPDATE mod_namecheapssl SET certificate_id='.(int)$_POST['remoteid'].' WHERE id='.$_POST['ssl_order_id']);
+                        NcSql::q('UPDATE mod_namecheapssl SET certificate_id='.(int)$_POST['remoteid'].' WHERE id='.(int)$_POST['ssl_order_id']);
                         
                         // redirect
                         $query_string = '?module=namecheap_ssl&action=sync&hostingid='.$_REQUEST['hostingid'].'&message=updated';
@@ -419,7 +416,7 @@ function namecheap_ssl_output($vars) {
                         // get whmcs product
                         $items[$k]['namecheap'] = $item['@attributes'];
                         
-                        $query = sprintf("SELECT serviceid,status FROM tblsslorders WHERE module='namecheapssl' AND remoteid='%s'", $item['@attributes']['CertificateID']);
+                        $query = sprintf("SELECT serviceid,status FROM tblsslorders WHERE module='namecheapssl' AND remoteid='%s'", (int)$item['@attributes']['CertificateID']);
                         $items[$k]['whmcs'] = NcSql::sql2row($query);
                         
                     }

@@ -3,7 +3,7 @@
 // ****************************************************************************
 // *                                                                          *
 // * NameCheap.com WHMCS SSL Module                                           *
-// * Version 1.6.6
+// * Version 1.6.7
 // * Email: sslsupport@namecheap.com                                          *
 // *                                                                          *
 // * Copyright 2010-2013 NameCheap.com                                        *
@@ -167,6 +167,13 @@
 // Updated on July 21 2017 to version 1.6.6
 // Minor fixes according to changes in API
 // Removed mysql_ functions, added support of MySQLi extension
+//
+// 
+// Updated on May 18 2018 to version 1.6.7
+// Security changes: escaped all variables in SQL queries and templates
+// Fixed bug with duplicate configuration email after addon reactivation
+// Fixed bug with revoke function
+// 
 
 
 require_once dirname(__FILE__) . "/namecheapapi.php";
@@ -704,6 +711,10 @@ function namecheapssl_SSLStepOne($params) {
         $fields = array('firstname','lastname','orgname','jobtitle','email','address1','address2','city','state','postcode','country','phonenumber');
         foreach($fields as $field){            
             if($previousConfigData){
+                
+                $field = htmlspecialchars($field);
+                $previousConfigData[$field] = htmlspecialchars($previousConfigData[$field]);
+                
                 $script .= "$('[name=$field]').val('" . addslashes($previousConfigData[$field]) . "')\n";
                 $script .= "$('[name=$field]').prop('disabled',true)\n";
                 $script .= "$('[name=$field]').after($('<input type=hidden name=$field value=\"" . addslashes($previousConfigData[$field]) . "\" >'))\n";
@@ -712,6 +723,10 @@ function namecheapssl_SSLStepOne($params) {
         
         if($previousConfigData['fields']){
             foreach($previousConfigData['fields'] as $field=>$value){
+                
+                $field = htmlspecialchars($field);
+                $value = htmlspecialchars($value);
+                
                 $script .= "$('[name=firstname]').after($('<input type=hidden name=fields[$field] value=\"" . addslashes($value) . "\" >'))\n";
             }
         }
@@ -1108,9 +1123,9 @@ function namecheapssl_SSLStepTwo($params) {
 
 
     $values = array();
-    $values["displaydata"]["Domain"] = $row['domain'];
-    $values["displaydata"]["Validity Period"] = ($row['period'] * 12) . " " . $_LANG['ncssl_months'];
-    $values["displaydata"]["Expiration Date"] = $row['expiry_date'];
+    $values["displaydata"]["Domain"] = htmlspecialchars($row['domain']);
+    $values["displaydata"]["Validity Period"] = htmlspecialchars(($row['period'] * 12) . " " . $_LANG['ncssl_months']);
+    $values["displaydata"]["Expiration Date"] = htmlspecialchars($row['expiry_date']);
     $certType = $row['type'];
 
     // parse CSR
@@ -1124,14 +1139,14 @@ function namecheapssl_SSLStepTwo($params) {
         $response = $api->request("namecheap.ssl.parseCSR", $requestParams);
         $result = $api->parseResponse($response);
 
-        $values["displaydata"]["Organization"] = $result["SSLParseCSRResult"]["CSRDetails"]["Organisation"];
-        $values["displaydata"]["Organization Unit"] = $result["SSLParseCSRResult"]["CSRDetails"]["OrganisationUnit"];
-        $values["displaydata"]["Email"] = $result["SSLParseCSRResult"]["CSRDetails"]["Email"];
-        $values["displaydata"]["Locality"] = $result["SSLParseCSRResult"]["CSRDetails"]["Locality"];
-        $values["displaydata"]["State"] = $result["SSLParseCSRResult"]["CSRDetails"]["State"];
-        $values["displaydata"]["Country"] = $result["SSLParseCSRResult"]["CSRDetails"]["Country"];
+        $values["displaydata"]["Organization"] = htmlspecialchars($result["SSLParseCSRResult"]["CSRDetails"]["Organisation"]);
+        $values["displaydata"]["Organization Unit"] = htmlspecialchars($result["SSLParseCSRResult"]["CSRDetails"]["OrganisationUnit"]);
+        $values["displaydata"]["Email"] = htmlspecialchars($result["SSLParseCSRResult"]["CSRDetails"]["Email"]);
+        $values["displaydata"]["Locality"] = htmlspecialchars($result["SSLParseCSRResult"]["CSRDetails"]["Locality"]);
+        $values["displaydata"]["State"] = htmlspecialchars($result["SSLParseCSRResult"]["CSRDetails"]["State"]);
+        $values["displaydata"]["Country"] = htmlspecialchars($result["SSLParseCSRResult"]["CSRDetails"]["Country"]);
 
-        $domain = $values["displaydata"]["Domain"] = $result["SSLParseCSRResult"]["CSRDetails"]['CommonName'];
+        $domain = $values["displaydata"]["Domain"] = htmlspecialchars($result["SSLParseCSRResult"]["CSRDetails"]['CommonName']);
     } catch (Exception $e) {
 
         return array('error' => $_LANG['ncssl_error_occured'] . $e->getMessage());
@@ -1251,7 +1266,7 @@ function namecheapssl_SSLStepTwo($params) {
         
         //$script .= "$('[value=\"".addslashes($backupedConfigData['approveremail'])."\"]').prop('checked',true)\n";
         $script .= "$('[name=approveremail]').prop('disabled',true)\n";
-        $script .= "$('[name=approveremail]:last').after($('<input type=hidden name=approveremail value=\"" . addslashes($backupedConfigData['approveremail']) . "\" >'))\n";
+        $script .= "$('[name=approveremail]:last').after($('<input type=hidden name=approveremail value=\"" . addslashes(htmlspecialchars($backupedConfigData['approveremail'])) . "\" >'))\n";
         
         
         $script .= "})";
@@ -2138,7 +2153,7 @@ function namecheapssl_AdminServicesTabFields($params) {
         if(!empty($configdata['fields'])){
             foreach($configdata['fields'] as $fieldName=>$fieldValue){
                 if('san_' == substr($fieldName,0,4)){
-                    $sans[] = $fieldValue;
+                    $sans[] = htmlspecialchars($fieldValue);
                 }
             }
         }
@@ -2185,17 +2200,17 @@ function namecheapssl_AdminServicesTabFields($params) {
     <fieldset style=\"margin:10px 0\">
         <legend><b>{$_LANG['ncssl_admin_viewdetails_certificate_details']}</b></legend>
         <table>
-            <tr><td>{$_LANG['ncssl_admin_viewdetails_status']}:</td><td>{$vw['@attributes']['Status']}</td></tr>
-            <tr><td>{$_LANG['ncssl_admin_viewdetails_status_description']}:</td><td>{$vw['@attributes']['StatusDescription']}</td></tr>
-            <tr><td>{$_LANG['ncssl_admin_viewdetails_type']}:</td><td>{$vw['@attributes']['Type']}</td></tr>
-            <tr><td>{$_LANG['ncssl_admin_viewdetails_issued_on']}:</td><td>{$vw['@attributes']['IssuedOn']}</td></tr>
-            <tr><td>{$_LANG['ncssl_admin_viewdetails_expires']}:</td><td>{$vw['@attributes']['Expires']}</td></tr>
-            <tr><td>{$_LANG['ncssl_admin_viewdetails_activation_expire_date']}:</td><td>{$vw['@attributes']['ActivationExpireDate']}</td></tr>
-            <tr><td>{$_LANG['ncssl_admin_viewdetails_nc_order_id']}:</td><td>{$vw['@attributes']['OrderId']}</td></tr>
-            <tr><td>{$_LANG['ncssl_admin_viewdetails_nc_cert_id']}:</td><td>{$cert['remoteid']}</td></tr>
+            <tr><td>{$_LANG['ncssl_admin_viewdetails_status']}:</td><td>".htmlspecialchars($vw['@attributes']['Status'])."</td></tr>
+            <tr><td>{$_LANG['ncssl_admin_viewdetails_status_description']}:</td><td>".htmlspecialchars($vw['@attributes']['StatusDescription'])."</td></tr>
+            <tr><td>{$_LANG['ncssl_admin_viewdetails_type']}:</td><td>".htmlspecialchars($vw['@attributes']['Type'])."</td></tr>
+            <tr><td>{$_LANG['ncssl_admin_viewdetails_issued_on']}:</td><td>".htmlspecialchars($vw['@attributes']['IssuedOn'])."</td></tr>
+            <tr><td>{$_LANG['ncssl_admin_viewdetails_expires']}:</td><td>".htmlspecialchars($vw['@attributes']['Expires'])."</td></tr>
+            <tr><td>{$_LANG['ncssl_admin_viewdetails_activation_expire_date']}:</td><td>".htmlspecialchars($vw['@attributes']['ActivationExpireDate'])."</td></tr>
+            <tr><td>{$_LANG['ncssl_admin_viewdetails_nc_order_id']}:</td><td>".htmlspecialchars($vw['@attributes']['OrderId'])."</td></tr>
+            <tr><td>{$_LANG['ncssl_admin_viewdetails_nc_cert_id']}:</td><td>".htmlspecialchars($cert['remoteid'])."</td></tr>
             "
             .
-            (!empty($vw['@attributes']['SANSCount']) ? "<tr><td>{$_LANG['ncssl_admin_viewdetails_count_of_sans']}:</td><td>{$vw['@attributes']['SANSCount']}</td></tr>":'').        
+            (!empty($vw['@attributes']['SANSCount']) ? "<tr><td>{$_LANG['ncssl_admin_viewdetails_count_of_sans']}:</td><td>".htmlspecialchars($vw['@attributes']['SANSCount'])."</td></tr>":'').        
             (!empty($sans) ? "<tr><td>{$_LANG['ncssl_admin_viewdetails_sans']}:</td><td>".join(',',$sans)."</td></tr>" : '')
             .
             "<tr><td>
@@ -2203,7 +2218,7 @@ function namecheapssl_AdminServicesTabFields($params) {
                 </td>
                 <td>
                     <div style=\"margin:5px 0; border: 1px solid #ccc; padding:2px\">
-                        " . nl2br($vw['CertificateDetails']['CSR']) . "
+                        " . nl2br(htmlspecialchars($vw['CertificateDetails']['CSR'])) . "
                     </div>
                     ";
 
@@ -2212,15 +2227,15 @@ function namecheapssl_AdminServicesTabFields($params) {
                     <div style=\"margin:5px 0; border: 1px solid #ccc; padding:2px\">                        
                         <table>
                             <tr><td colspan=\"2\">{$_LANG['ncssl_admin_viewdetails_decoded_csr']}</td></tr>
-                            <tr><td>{$_LANG['ncssl_admin_viewdetails_common_name']}:</td><td> {$vw_csr['CommonName']}</td></tr>
-                            <tr><td>{$_LANG['ncssl_admin_viewdetails_domain_name']}:</td><td> {$vw_csr['DomainName']}</td></tr>
-                            <tr><td>{$_LANG['ncssl_admin_viewdetails_country']}:</td><td> {$vw_csr['Country']}</td></tr>
-                            <tr><td>{$_LANG['ncssl_admin_viewdetails_organization_unit']}:</td><td> {$vw_csr['OrganisationUnit']}</td></tr>
-                            <tr><td>{$_LANG['ncssl_admin_viewdetails_organization']}:</td><td> {$vw_csr['Organisation']}</td></tr>
+                            <tr><td>{$_LANG['ncssl_admin_viewdetails_common_name']}:</td><td> ".htmlspecialchars($vw_csr['CommonName'])."</td></tr>
+                            <tr><td>{$_LANG['ncssl_admin_viewdetails_domain_name']}:</td><td> ".htmlspecialchars($vw_csr['DomainName'])."</td></tr>
+                            <tr><td>{$_LANG['ncssl_admin_viewdetails_country']}:</td><td> ".htmlspecialchars($vw_csr['Country'])."</td></tr>
+                            <tr><td>{$_LANG['ncssl_admin_viewdetails_organization_unit']}:</td><td> ".htmlspecialchars($vw_csr['OrganisationUnit'])."</td></tr>
+                            <tr><td>{$_LANG['ncssl_admin_viewdetails_organization']}:</td><td> ".htmlspecialchars($vw_csr['Organisation'])."</td></tr>
                             <tr><td>{$_LANG['ncssl_admin_viewdetails_valid_true_domain']}:</td><td> " . ($vw_csr['ValidTrueDomain'] ? 'yes' : 'no') . "</td></tr>
-                            <tr><td>{$_LANG['ncssl_admin_viewdetails_state']}:</td><td> {$vw_csr['State']}</td></tr>
-                            <tr><td>{$_LANG['ncssl_admin_viewdetails_locality']}:</td><td> {$vw_csr['Locality']}</td></tr>
-                            <tr><td>{$_LANG['ncssl_admin_viewdetails_email']}:</td><td> {$vw_csr['Email']}</td></tr>
+                            <tr><td>{$_LANG['ncssl_admin_viewdetails_state']}:</td><td> ".htmlspecialchars($vw_csr['State'])."</td></tr>
+                            <tr><td>{$_LANG['ncssl_admin_viewdetails_locality']}:</td><td> ".htmlspecialchars($vw_csr['Locality'])."</td></tr>
+                            <tr><td>{$_LANG['ncssl_admin_viewdetails_email']}:</td><td> ".htmlspecialchars($vw_csr['Email'])."</td></tr>
                         </table>
                     </div>";
         }
@@ -2228,13 +2243,13 @@ function namecheapssl_AdminServicesTabFields($params) {
 
         $html .= "</td>
             </tr>
-            <tr><td>{$_LANG['ncssl_admin_viewdetails_approver_email']}:</td><td>" . nl2br($vw['CertificateDetails']['ApproverEmail']) . "</td></tr>
+            <tr><td>{$_LANG['ncssl_admin_viewdetails_approver_email']}:</td><td>" . nl2br(htmlspecialchars($vw['CertificateDetails']['ApproverEmail'])) . "</td></tr>
             " .
               // . () .
             "
-            <tr><td>{$_LANG['ncssl_admin_viewdetails_common_name']}:</td><td>" . nl2br($vw['CertificateDetails']['CommonName']) . "</td></tr>
-            <tr><td>{$_LANG['ncssl_admin_viewdetails_provider_order_id']}:</td><td>" . nl2br($vw['Provider']['OrderID']) . "</td></tr>
-            <tr><td>{$_LANG['ncssl_admin_viewdetails_provider_name']}:</td><td>" . nl2br($vw['Provider']['Name']) . "</td></tr>
+            <tr><td>{$_LANG['ncssl_admin_viewdetails_common_name']}:</td><td>" . nl2br(htmlspecialchars($vw['CertificateDetails']['CommonName'])) . "</td></tr>
+            <tr><td>{$_LANG['ncssl_admin_viewdetails_provider_order_id']}:</td><td>" . nl2br(htmlspecialchars($vw['Provider']['OrderID'])) . "</td></tr>
+            <tr><td>{$_LANG['ncssl_admin_viewdetails_provider_name']}:</td><td>" . nl2br(htmlspecialchars($vw['Provider']['Name'])) . "</td></tr>
         </table>
     </fieldset>
 
@@ -2242,7 +2257,7 @@ function namecheapssl_AdminServicesTabFields($params) {
         $fieldsarray = array("Certificate Info" => $html);
     } else {
         
-        $fieldsarray = array("Certificate Info" => '<input type="button" value="' . $_LANG['ncssl_admin_viewdetails_button'] . '" onclick="window.location=\'?userid=' . $params['clientdetails']['userid'] . '&id=' . $params['serviceid'] . '&viewDetails\'" />');
+        $fieldsarray = array("Certificate Info" => '<input type="button" value="' . $_LANG['ncssl_admin_viewdetails_button'] . '" onclick="window.location=\'?userid=' . (int)$params['clientdetails']['userid'] . '&id=' . (int)$params['serviceid'] . '&viewDetails\'" />');
         
     }
     
@@ -2267,6 +2282,8 @@ function namecheapssl_Revoke($params){
     $descriptions = array();
     
     $ids = $revokeManager->getRemoteIdForRevocation();
+    
+    $localCertInfo->loadServerTypes();
     
     if ('COMODO'!=$localCertInfo->getProvider() && count($ids)>1){
         return $_LANG['ncssl_error_revoke_4'];
@@ -2356,7 +2373,7 @@ function namecheapssl_ClientArea($params) {
     if (!empty($cert) && !empty($cert['id'])) {
 
         $code = '<span><form action="clientarea.php?action=productdetails" method="post">' . "\n";
-        $code .= '<input type="hidden" name="id" value="' . $params['serviceid'] . '" />' . "\n";
+        $code .= '<input type="hidden" name="id" value="' . (int)$params['serviceid'] . '" />' . "\n";
         $code .= '<input type="hidden" name="modop" value="custom" />' . "\n";
         $code .= '<input type="hidden" name="a" value="viewdetails" />' . "\n";
         $code .= '<input type="submit" value="' . $_LANG['ncssl_view_certificate_details'] . '" />' . "\n";
@@ -2530,7 +2547,7 @@ function namecheapssl_viewdetails($params) {
     if(!empty($configdata['fields'])){
         foreach($configdata['fields'] as $fieldName=>$fieldValue){
             if('san_' == substr($fieldName,0,4)){
-                $sans[] = $fieldValue;
+                $sans[] = htmlspecialchars($fieldValue);
             }
         }
     }
@@ -2586,15 +2603,15 @@ function namecheapssl_viewdetails($params) {
         //'breadcrumb' => ' > Certificate Details',
         'breadcrumb' => ' > ' . $_LANG['ncssl_certificate_details'],
         'vars' => array(
-            'status' => $status,
+            'status' => htmlspecialchars($status),
             'renewal' => $renewal,
-            'type' => $type,
-            'approverEmail' => $approverEmail,
-            'domain' => $domain,
-            'serviceid' => $params['serviceid'],
+            'type' => htmlspecialchars($type),
+            'approverEmail' => htmlspecialchars($approverEmail),
+            'domain' => htmlspecialchars($domain),
+            'serviceid' => (int)$params['serviceid'],
             'configlink' => $sslconfigurationlink,
             'confighash' => md5($sslorderid),
-            'adminEmail' => $adminEmail,
+            'adminEmail' => htmlspecialchars($adminEmail),
             
             'httpBasedValidation' => !empty($fileName),
             'showRevokeButton' => $showRevokeButton,
@@ -2626,7 +2643,7 @@ function namecheapssl_show_validation_file_contents($params){
     $pagearray = array(
         'templatefile' => 'show_validation_file_contents',
         'vars' => array(
-            'phrase'=>$phrase,
+            'phrase'=> htmlspecialchars($phrase),
             'serviceid' => (int)$params['serviceid']
         )
     );
@@ -2852,7 +2869,7 @@ function namecheapssl_save_debug_info($message, $command, $isResponse = false, $
 
     if (!empty($_SESSION['adminid'])) {
         $userid = $_SESSION["adminid"];
-        $sql = "SELECT username FROM tbladmins WHERE id='$userid'";
+        $sql = "SELECT username FROM tbladmins WHERE id='".(int)$userid."'";
         $username = NcSql::sql2cell($sql);
     } else {
         $userid = $_SESSION['uid'];
@@ -2861,7 +2878,7 @@ function namecheapssl_save_debug_info($message, $command, $isResponse = false, $
 
     $debug = $isResponse ? 2 : 1;
     
-    $sql = "INSERT INTO mod_namecheapssl_log SET date=NOW(), debug='$debug', action='" . NcSql::e($command) . "', description='".  NcSql::e($message) . "', ipaddr='".NcSql::e($_SERVER['REMOTE_ADDR'])."', userid='$userid', user='$username', parentid='$parentid'";
+    $sql = "INSERT INTO mod_namecheapssl_log SET date=NOW(), debug='".(int)$debug."', action='" . NcSql::e($command) . "', description='".  NcSql::e($message) . "', ipaddr='".NcSql::e($_SERVER['REMOTE_ADDR'])."', userid='".(int)$userid."', user='".NcSql::e($username)."', parentid='".(int)$parentid."'";
     NcSql::q($sql);
     
     

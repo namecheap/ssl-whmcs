@@ -1,8 +1,8 @@
 
 <form action="" method="get">
 
-<input type="hidden" name="module" value="<?php echo $view['global']['module']?>" />
-<input type="hidden" name="action" value="<?php echo $view['global']['action']?>" />
+    <input type="hidden" name="module" value="<?php echo htmlspecialchars($view['global']['module'])?>" />
+    <input type="hidden" name="action" value="<?php echo htmlspecialchars($view['global']['action'])?>" />
 
 <input type="hidden" name="filter_action" value="<?php echo htmlspecialchars($view['filter_action_value'])?>" />
 <input type="hidden" name="filter_date_from" value="<?php echo htmlspecialchars($view['filter_date_from_value'])?>" />
@@ -13,12 +13,12 @@
 <table width="100%" cellspacing="0" cellpadding="3" border="0"><tbody><tr>
 
 
-<td width="50%" align="left"><?php echo $view['log_items_count']?> <?php echo $_LANG['ncssl_addon_log_records_found']?>, <?php echo $_LANG['ncssl_addon_log_page']?> <?php echo $view['log_items_current_page']?> <?php echo $_LANG['ncssl_addon_log_of']?> <?php echo $view['log_items_count_of_pages']?></td>
+<td width="50%" align="left"><?php echo (int)$view['log_items_count']?> <?php echo $_LANG['ncssl_addon_log_records_found']?>, <?php echo $_LANG['ncssl_addon_log_page']?> <?php echo (int)$view['log_items_current_page']?> <?php echo $_LANG['ncssl_addon_log_of']?> <?php echo (int)$view['log_items_count_of_pages']?></td>
 <td width="50%" align="right">
     <?php echo $_LANG['ncssl_addon_log_jump_to_page']?>:
     <select onchange="submit()" name="page">
         <?php for($i=1;$i<=$view['log_items_count_of_pages'];$i++):?>
-            <option value="<?php echo $i?>"<?php if ($i==$view['log_items_current_page']):?> selected="selected"<?php endif;?>><?php echo $i?></option>
+            <option value="<?php echo (int)$i?>"<?php if ($i==$view['log_items_current_page']):?> selected="selected"<?php endif;?>><?php echo (int)$i?></option>
         <?php endfor;?>
     </select>
 </tr></tbody></table>
@@ -28,14 +28,14 @@
 <div style="padding:10px 0">
     <form action="" method="get">
         
-        <input type="hidden" name="module" value="<?php echo $view['global']['module']?>" />
-        <input type="hidden" name="action" value="<?php echo $view['global']['action']?>" />
+        <input type="hidden" name="module" value="<?php echo htmlspecialchars($view['global']['module'])?>" />
+        <input type="hidden" name="action" value="<?php echo htmlspecialchars($view['global']['action'])?>" />
 
         
         <select name="filter_action">
             <option value=""><?php echo $_LANG['ncssl_addon_log_choose_action']?></option>
             <?php foreach($view['filter_action_options'] as $filter_action):?>
-            <option value="<?php echo $filter_action?>" <?php if ($filter_action==$view['filter_action_value']):?>selected="selected"<?php endif;?>><?php echo $filter_action?></option>
+            <option value="<?php echo htmlspecialchars($filter_action)?>" <?php if ($filter_action==$view['filter_action_value']):?>selected="selected"<?php endif;?>><?php echo htmlspecialchars($filter_action)?></option>
             <?php endforeach;?>
         </select>
         &nbsp;
@@ -62,12 +62,12 @@
         </tr>
         <?php foreach ($view['log_items'] as $log_item):?>
         <tr>        
-            <td style="white-space: nowrap"><?php echo $log_item['date']?></td>
-            <td><?php echo $log_item['action']?></td>
+            <td style="white-space: nowrap"><?php echo htmlspecialchars($log_item['date'])?></td>
+            <td><?php echo htmlspecialchars($log_item['action'])?></td>
             <td><?php echo nl2br(htmlspecialchars($log_item['description']))?></td>
-            <td><?php echo $log_item['serviceid']?></td>
-            <td><?php echo $log_item['user']?></td>
-            <td><?php echo $log_item['ipaddr']?></td>
+            <td><?php echo htmlspecialchars($log_item['serviceid'])?></td>
+            <td><?php echo htmlspecialchars($log_item['user'])?></td>
+            <td><?php echo htmlspecialchars($log_item['ipaddr'])?></td>
         </tr>
         <?php endforeach;?>
 </tbody></table>

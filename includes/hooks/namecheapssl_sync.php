@@ -79,7 +79,7 @@
                     list($month, $day, $year) = explode("/", $aCertInfo['@attributes']['ExpireDate']);
                     
                     // 
-                    $res = NcSql::q("SELECT h.id FROM `tblhosting` h INNER JOIN `tblsslorders` s ON s.serviceid=h.id  WHERE s.remoteid='{$aCertInfo['@attributes']['CertificateID']}' AND h.`nextduedate` != '$year-$month-$day'");
+                    $res = NcSql::q("SELECT h.id FROM `tblhosting` h INNER JOIN `tblsslorders` s ON s.serviceid=h.id  WHERE s.remoteid='".(int)$aCertInfo['@attributes']['CertificateID']."' AND h.`nextduedate` != '".NcSql::e("$year-$month-$day")."'");
                     
                     if (NcSql::numRows($res)){
                         $iHostingId = array_shift(NcSql::fetchArray($res));
@@ -90,9 +90,9 @@
                         }
                         
                         $sql = "update `tblhosting`
-                                   set `nextduedate` = '$duedate',
-                                       `nextinvoicedate` = '$duedate'
-                                 where `id` = '$iHostingId'";                        
+                                   set `nextduedate` = '".NcSql::e($duedate)."',
+                                       `nextinvoicedate` = '". NcSql::e($duedate)."'
+                                 where `id` = '".(int)$iHostingId."'";                        
                         NcSql::q($sql);
                         namecheapssl_log('hook.sync', 'sync_hook_updated_duedate', array("$duedate"),$iHostingId);
                     }
@@ -105,7 +105,7 @@
                             $iHostingId = array_shift(NcSql::fetchArray($res));
                             $sql = "update `tblhosting`
                                         set `domain` = '$domain'
-                                        where `id` = '$iHostingId'";								 
+                                        where `id` = '".(int)$iHostingId."'";								 
                             NcSql::q($sql);
                             namecheapssl_log('hook.sync', 'sync_hook_updated_domain', array($domain),$iHostingId);
                         }
@@ -118,7 +118,7 @@
                 if ('replaced'==$aCertInfo['@attributes']['Status']){
                     
                         // synchronize reissue state
-                        $sql ="SELECT * FROM tblsslorders WHERE remoteid='{$aCertInfo['@attributes']['CertificateID']}'";
+                        $sql ="SELECT * FROM tblsslorders WHERE remoteid='".(int)$aCertInfo['@attributes']['CertificateID']."'";
                         $r = NcSql::q($sql);
                         if (NcSql::numRows($r)){
                             $aWhmcsCert = NcSql::fetchAssoc($r);
@@ -137,10 +137,10 @@
                                         //exit();
                                     }
                                     
-                                    $sql = "UPDATE tblsslorders SET remoteid='$replacedBy' WHERE remoteid='{$aCertInfo['@attributes']['CertificateID']}'";
+                                    $sql = "UPDATE tblsslorders SET remoteid='$replacedBy' WHERE remoteid='".(int)$aCertInfo['@attributes']['CertificateID']."'";
                                     NcSql::q($sql);
                                     
-                                    $sql = "UPDATE mod_namecheapssl SET certificate_id='$replacedBy' WHERE certificate_id='{$aCertInfo['@attributes']['CertificateID']}'";
+                                    $sql = "UPDATE mod_namecheapssl SET certificate_id='$replacedBy' WHERE certificate_id='".(int)$aCertInfo['@attributes']['CertificateID']."'";
                                     NcSql::q($sql);
                                     
                                     namecheapssl_log('hook.sync', 'sync_hook_updated_remoteid', array($aCertInfo['@attributes']['CertificateID'], $replacedBy),$aWhmcsCert['serviceid']);
@@ -172,7 +172,7 @@
         $dateStart = date('Y-m-d H:i:59',  mktime(date('H'), date('i'), date('s'), date('n'), date('d')-1));
         
         
-        $query = "SELECT log.*,c.email FROM mod_namecheapssl_log log LEFT JOIN tblclients AS c ON (log.userid=c.id AND user='client') WHERE log.date BETWEEN '$dateStart' AND '$dateEnd' AND `debug`=0 ";
+        $query = "SELECT log.*,c.email FROM mod_namecheapssl_log log LEFT JOIN tblclients AS c ON (log.userid=c.id AND user='client') WHERE log.date BETWEEN '". NcSql::e($dateStart)."' AND '". NcSql::e($dateEnd)."' AND `debug`=0 ";
         
         $r = NcSql::q($query);
         
@@ -211,12 +211,12 @@
                     
                     
                     // check if options is san and related to namecheap module product
-                    $r = NcSql::q("SELECT * FROM tblproductconfigoptions WHERE id=$configid");
+                    $r = NcSql::q("SELECT * FROM tblproductconfigoptions WHERE id=".(int)$configid."");
                     $row = NcSql::fetchAssoc($r);
                     if(substr($row['optionname'],0,3)==='san'){
                         
                         // it's a san option; we need to check old value
-                        $r = NcSql::q("SELECT qty FROM tblhostingconfigoptions WHERE relid=".(int)$params['id'] . " AND configid=".$configid);
+                        $r = NcSql::q("SELECT qty FROM tblhostingconfigoptions WHERE relid=".(int)$params['id'] . " AND configid=".(int)$configid);
                         $row = NcSql::fetchAssoc($r);
                         
                         $qty = $row['qty'];

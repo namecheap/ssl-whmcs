@@ -1,5 +1,5 @@
 <?php if($view['message']):?>
-<div class="infobox"><strong><span class="title"><?php echo $view['message']?></span></strong><br></div>
+<div class="infobox"><strong><span class="title"><?php echo htmlspecialchars($view['message'])?></span></strong><br></div>
 <?php endif;?>
 
 <form method="POST">
@@ -10,7 +10,7 @@
             <td class="fieldarea">
                 <select name="settings[sync_date_offset]">
                     <?php foreach($view['control_options']['sync_date_offset'] as $k=>$v):?>
-                        <option value="<?php echo $k?>"<?php if($k==$view['settings']['sync_date_offset']): ?>selected="selected"<?php endif; ?>><?php echo $v;?></option>
+                    <option value="<?php echo htmlspecialchars($k)?>"<?php if($k==$view['settings']['sync_date_offset']): ?>selected="selected"<?php endif; ?>><?php echo htmlspecialchars($v);?></option>
                     <?php endforeach;?>
                 </select>    
                 <?php echo $_LANG['ncssl_addon_setting_ssync_date_offset_2']?>
