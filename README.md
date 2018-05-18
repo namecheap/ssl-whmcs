@@ -4,6 +4,11 @@
 **Note:** This version is fully compatible with 7.1.x versions of WHMCS.
 ***
 
+##### Updated on May 18 2018 to version 1.6.7
+- Security changes: escaped all variables in SQL queries and templates
+- Fixed bug with duplicate configuration email after addon reactivation
+- Fixed bug with revoke function
+
 ##### Updated on September 7, 2017, to version 1.6.6 for WHMCS 7.x
 - Minor fixes according to changes in API
 - mysql_ functions removed, support of MySQLi extension added
