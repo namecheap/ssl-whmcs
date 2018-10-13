@@ -2720,6 +2720,8 @@ function namecheapssl_download($params){
         header('Content-Type: application/zip');
         header('Content-Length: ' . filesize($temp_file));
         header('Content-Disposition: attachment; filename="' . str_replace('.','_',$commonName) . '.zip"');
+        ob_clean();
+        flush();
         readfile($temp_file);
         unlink($temp_file);
         exit();
