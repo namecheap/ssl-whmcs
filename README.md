@@ -1,5 +1,12 @@
 ## Namecheap.com WHMCS SSL Module
 
+#### Update for WHMCS Namecheap SSL Plugin Users:
+
+The latest version is stable and works seamlessly with WHMCS 6.x.x / 7.x.x.  
+Further development of the WHMCS Namecheap SSL Plugin has stopped because user uptake is low.  
+If you experience any problems with plugin performance, [Contact Us](https://www.namecheap.com/support/live-chat/ssl/).  
+You can also find more user info [Here](https://www.namecheap.com/support/knowledgebase/subcategory.aspx/2196/whmcs-module-for-ssl).
+
 *** 
 **Note:** This version is fully compatible with 7.1.x versions of WHMCS.
 ***
