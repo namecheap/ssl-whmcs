@@ -671,6 +671,10 @@ function namecheapssl_CreateAccount($params) {
     return "success";
 }
 
+function namecheapssl_SuspendAccount($params) {
+    return "success";
+}
+
 function namecheapssl_SSLStepOne($params) {
     
     global $CONFIG, $_LANG;
